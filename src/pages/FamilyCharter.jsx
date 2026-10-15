@@ -100,7 +100,7 @@ export default function FamilyCharter() {
             </div>
           )}
           <div className="meta-pill advisor">
-            <span className="pill-num">100%</span>
+            <span className="pill-num">{charter.filter((p) => p.advisorNote).length} of {charter.length}</span>
             <span className="pill-txt">Advisor Verified</span>
           </div>
         </div>

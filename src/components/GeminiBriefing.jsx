@@ -1,44 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDemo } from '../state.jsx'
+import { useDemo, DEFAULT_REPORT_RECORD } from '../state.jsx'
 import { FAMILY } from '../data/demo.js'
 import { generateDualLensBriefing, askAdvisorJames } from '../engine/gemini.js'
 
 // Simple default briefing for instant render before generation
-const FALLBACK_BRIEFING = {
-  audioVoicenoteScript: "Hi Maya, James here. Quick 60-second update on the Carter portfolio. This quarter we saw healthy 7.8% gains, primarily driven by our strategic tilt into clean tech infrastructure and resilient dividend equities. For your $25,000 practice fund and your Year 5 design studio goal, this means we have comfortable downside protection and solid headroom. I love how you balanced equity upside with reserve cash in your recent proposals. Take a look at the breakdown below, and let me know if you want to jump on a quick call before our next family review.",
-  heirBriefing: {
-    headline: "Clean Tech Momentum & Steady Growth for Your Studio Goal",
-    summary: "The family portfolio gained +7.8% this quarter. More importantly, the 15% green transition allocation you advocated for outpaced traditional energy by 4.2%. We kept your $25,000 practice fund buffered against short-term market noise so you can test ideas with confidence.",
-    impactHighlight: "Your portfolio offset an estimated 142 metric tons of carbon this quarter through direct infrastructure green bonds.",
-    milestoneImpact: "On track: Your $950,000 Year 5 design studio milestone remains well-funded with an 88% probability of success under current market scenarios.",
-    jargonDecoded: [
-      { term: "Duration Hedging", explanation: "Locking in bond safety so sudden interest rate hikes don't hurt our cash reserves." },
-      { term: "Sharpe Ratio (1.42)", explanation: "A measure of return per unit of risk—basically proving we got good returns without gambling." },
-      { term: "Tranche Allocation", explanation: "Releasing portions of wealth gradually as you master new financial skills." }
-    ],
-    suggestedQuestions: [
-      "How will the upcoming Fed rate cuts affect my practice fund?",
-      "Can we reinvest some gains specifically into early-stage climate tech?",
-      "How does Elena feel about increasing my practice fund limit?"
-    ]
-  },
-  parentBriefing: {
-    headline: "Quarterly Review: Capital Preservation & Next-Gen Governance",
-    fiduciarySummary: "Total Carter Family portfolio stands at $12.4M (+7.8% YTD). Fixed-income duration was actively hedged to protect principal, and tax-loss harvesting in private credit generated $38,000 in offset value for year-end filing.",
-    capitalPreservation: "Downside stress testing confirms that even in a 2008-style liquidity shock, family living distributions and multi-generational trust reserves remain 100% unimpaired.",
-    taxStrategy: "Executed municipal bond transitions to maximize state and federal tax exemptions while maintaining liquidity tranches.",
-    readinessNote: "Maya is demonstrating high prudence. In her recent simulations, she allocated sufficient liquidity buffers rather than over-concentrating in speculative growth. Her decision score averaged 84/100.",
-    talkingPoints: [
-      "Review Maya's Level 2 progress fund proposal ($25,000 sandbox).",
-      "Confirm year-end philanthropic tax contribution through family foundation.",
-      "Align on upcoming 2028 estate tax exemption changes."
-    ]
-  }
-}
+const FALLBACK_BRIEFING = DEFAULT_REPORT_RECORD
 
-/**
- * Animated Audio Voicenote Player with Web Speech Synthesis
- */
 export function AudioVoicenotePlayer({ script, advisorName = 'James Ortiz' }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
@@ -226,7 +193,6 @@ export function AskAdvisorBar({ briefing, role = 'heir' }) {
       const answer = await askAdvisorJames({
         question: q,
         role,
-        currentBriefing: briefing,
         state,
       })
 
@@ -691,7 +657,7 @@ export function AdvisorBriefingStudio() {
             >
               <span>{isGenerating ? '✨ Generating with Gemini...' : '✨ Generate & Sync Briefings'}</span>
             </button>
-            <span className="muted small">Uses live Gemini 2.5 Flash</span>
+            <span className="muted small">Gemini writes the wording; every number comes from the simulation engine</span>
           </div>
         </div>
 
@@ -711,7 +677,7 @@ export function AdvisorBriefingStudio() {
               <h4>{current.parentBriefing.headline}</h4>
               <p className="small muted">{current.parentBriefing.fiduciarySummary}</p>
               <div className="mini-audio-badge" style={{ background: 'var(--spruce-soft)' }}>
-                <span>🛡️ Fiduciary &amp; Tax Preservation metrics attached</span>
+                <span>🛡️ Figures computed by the engine, not the AI</span>
               </div>
             </div>
           </div>

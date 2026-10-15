@@ -1,4 +1,5 @@
 // Gemini API Client & Persona Translation Engine for Heirloom
+import { money, computeFamilyFacts, factsToText, allowedNumbers, findUnverifiedNumbers, guardObject, buildBriefing, evaluateCharterRules, amountFromText } from './facts.js'
 
 const ENV_KEY = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null
 const API_KEY = ENV_KEY || 'AIzaSyCKdxmSruUZbhYLXUU0OSds4infPNHRLck'
@@ -46,43 +47,19 @@ export async function callGemini(prompt, systemInstruction = '', responseMimeTyp
   }
 }
 
-/**
- * High-fidelity fallback briefings in case of offline / rate limits
- */
-const DEFAULT_BRIEFING = {
-  audioVoicenoteScript: "Hi Maya, James here. Quick 60-second update on the Carter portfolio. This quarter we saw healthy 7.8% gains, primarily driven by our strategic tilt into clean tech infrastructure and resilient dividend equities. For your $25,000 practice fund and your Year 5 design studio goal, this means we have comfortable downside protection and solid headroom. I love how you balanced equity upside with reserve cash in your recent proposals. Take a look at the breakdown below, and let me know if you want to jump on a quick call before our next family review.",
-  heirBriefing: {
-    headline: "Clean Tech Momentum & Steady Growth for Your Studio Goal",
-    summary: "The family portfolio gained +7.8% this quarter. More importantly, the 15% green transition allocation you advocated for outpaced traditional energy by 4.2%. We kept your $25,000 practice fund buffered against short-term market noise so you can test ideas with confidence.",
-    impactHighlight: "Your portfolio offset an estimated 142 metric tons of carbon this quarter through direct infrastructure green bonds.",
-    milestoneImpact: "On track: Your $950,000 Year 5 design studio milestone remains well-funded with an 88% probability of success under current market scenarios.",
-    jargonDecoded: [
-      { term: "Duration Hedging", explanation: "Locking in bond safety so sudden interest rate hikes don't hurt our cash reserves." },
-      { term: "Sharpe Ratio (1.42)", explanation: "A measure of return per unit of risk—basically proving we got good returns without gambling." },
-      { term: "Tranche Allocation", explanation: "Releasing portions of wealth gradually as you master new financial skills." }
-    ],
-    suggestedQuestions: [
-      "How will the upcoming Fed rate cuts affect my practice fund?",
-      "Can we reinvest some gains specifically into early-stage climate tech?",
-      "How does Elena feel about increasing my practice fund limit?"
-    ]
-  },
-  parentBriefing: {
-    headline: "Quarterly Review: Capital Preservation & Next-Gen Governance",
-    fiduciarySummary: "Total Carter Family portfolio stands at $12.4M (+7.8% YTD). Fixed-income duration was actively hedged to protect principal, and tax-loss harvesting in private credit generated $38,000 in offset value for year-end filing.",
-    capitalPreservation: "Downside stress testing confirms that even in a 2008-style liquidity shock, family living distributions and multi-generational trust reserves remain 100% unimpaired.",
-    taxStrategy: "Executed municipal bond transitions to maximize state and federal tax exemptions while maintaining liquidity tranches.",
-    readinessNote: "Maya is demonstrating high prudence. In her recent simulations, she allocated sufficient liquidity buffers rather than over-concentrating in speculative growth. Her decision score averaged 84/100.",
-    talkingPoints: [
-      "Review Maya's Level 2 progress fund proposal ($25,000 sandbox).",
-      "Confirm year-end philanthropic tax contribution through family foundation.",
-      "Align on upcoming 2028 estate tax exemption changes."
-    ]
-  }
-}
+
+// Gemini writes words; it never decides numbers. Every call:
+//  1. computes the facts deterministically (facts.js -> engine.js),
+//  2. shows Gemini only that fact sheet and forbids any other number,
+//  3. checks the reply: any text with a number not on the fact sheet is
+//     replaced by the deterministic version of the same text.
+
+const NUMBERS_RULE = `STRICT NUMBERS RULE: The FACTS block is the only source of numbers. Use a number only if it appears in FACTS, written the same way. Never invent or estimate returns, portfolio totals, percentages, probabilities, scores, tax amounts, dates, durations or impact figures. If a sentence would need a number that is not in FACTS, write it without a number.`
+
+const parseJson = (text) => JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim())
 
 /**
- * Generate Dual-Lens Briefing using Gemini Flash
+ * Generate Dual-Lens Briefing: numbers from the engine, wording from Gemini
  */
 export async function generateDualLensBriefing({
   advisorNote = '',
@@ -90,202 +67,151 @@ export async function generateDualLensBriefing({
   advisorTone = 'Encouraging & Mentoring',
   state = {},
 }) {
-  const proposalAmount = state.proposal?.amount || 25000
-  const proposalUse = state.proposal?.use || 'practice fund'
-  const proposalWhy = state.proposal?.why || 'balanced growth'
-  const heirLevel = state.level || 2
-  const simCount = Object.keys(state.simulations || {}).length
+  const facts = computeFamilyFacts(state)
+  const factText = factsToText(facts)
+  const deterministic = buildBriefing(facts)
+  const allowed = allowedNumbers(factText)
 
-  const systemInstruction = `You are James Ortiz, a senior fiduciary wealth advisor at Northfield Wealth. You manage wealth for the prominent Carter family (Elena the mother/matriarch, and Maya age 24, the heir). 
-Your specialty is bridging the generational gap: translating institutional fiduciary strategy into empowering, jargon-free education for Maya, while providing rigorous capital preservation analysis for Elena.
-Always output purely valid raw JSON matching the requested structure without markdown fences.`
+  const systemInstruction = `You are James Ortiz, a senior wealth advisor at Northfield Wealth, writing for the Carter family: Elena (parent) and Maya (age 24, heir).
+You translate the family's plan into plain, encouraging language for Maya and careful, preservation-focused language for Elena.
+${NUMBERS_RULE}
+Always output raw JSON matching the requested structure, without markdown fences.`
 
-  const prompt = `Generate a personalized dual-lens quarterly wealth briefing for the Carter family.
+  const prompt = `Write a dual-lens briefing for the Carter family.
 
-Current Context:
-- Heir: Maya (Age 24), currently at Trust Ladder Level ${heirLevel} of 5. Completed ${simCount} practice scenarios.
-- Major Heir Goal: Launch an independent design studio in Year 5 ($950,000).
-- Proposed Plan: $${proposalAmount.toLocaleString()} into "${proposalUse}". Maya's stated rationale: "${proposalWhy}".
-- Focus Area: ${focusArea}
-- Advisor Tone: ${advisorTone}
-- Advisor custom guidance notes: "${advisorNote || 'Highlight prudent risk management while affirming values-aligned clean energy investments.'}"
-- Family Portfolio: $12.4M overall, +7.8% YTD return, 60% equities, 30% fixed income, 10% real estate.
+FACTS (computed by Heirloom's simulation engine; the only numbers you may use):
+${factText}
 
-Respond ONLY with a valid JSON object matching this schema:
+Focus area: ${focusArea}
+Advisor tone: ${advisorTone}
+Advisor's note to emphasize: "${advisorNote || 'Highlight prudent risk management and the link between the plan and the family charter.'}"
+
+Respond ONLY with a JSON object with this structure:
 {
-  "audioVoicenoteScript": "A warm, natural 45-60 second spoken voicenote transcript from James addressing Maya directly (starts with 'Hey Maya, James here...')",
+  "audioVoicenoteScript": "A warm 45-60 second spoken note from James to Maya, starting 'Hi Maya, James here.'",
   "heirBriefing": {
-    "headline": "Inspiring, clear headline for Maya",
-    "summary": "2-3 sentences explaining portfolio results in plain, empowering language",
-    "impactHighlight": "Specific note on ESG/climate or community impact",
-    "milestoneImpact": "How this affects her Year 5 design studio milestone and practice fund",
-    "jargonDecoded": [
-      { "term": "Financial Term 1", "explanation": "Simple, intuitive explanation" },
-      { "term": "Financial Term 2", "explanation": "Simple, intuitive explanation" },
-      { "term": "Financial Term 3", "explanation": "Simple, intuitive explanation" }
-    ],
-    "suggestedQuestions": [
-      "Question 1 Maya might ask James",
-      "Question 2 Maya might ask James",
-      "Question 3 Maya might ask James"
-    ]
+    "headline": "Clear headline for Maya",
+    "summary": "2-3 plain sentences about her plan",
+    "impactHighlight": "How the plan connects to the family's sustainability principle",
+    "milestoneImpact": "What the plan means for her design studio goal",
+    "jargonDecoded": [ { "term": "Term", "explanation": "Simple explanation" } ],
+    "suggestedQuestions": ["Question 1", "Question 2", "Question 3"]
   },
   "parentBriefing": {
-    "headline": "Institutional, reassuring headline for Elena",
-    "fiduciarySummary": "Fiduciary summary covering portfolio performance, liquidity, and preservation",
-    "capitalPreservation": "Downside risk analysis and trust safety",
-    "taxStrategy": "Tax efficiency or tax-loss harvesting context",
-    "readinessNote": "Objective assessment of Maya's developing financial maturity to give Elena trust",
-    "talkingPoints": [
-      "Family discussion topic 1",
-      "Family discussion topic 2",
-      "Family discussion topic 3"
-    ]
+    "headline": "Reassuring headline for Elena",
+    "fiduciarySummary": "Summary of the plan and its range of outcomes",
+    "capitalPreservation": "What the plan means for keeping the family wealth",
+    "taxStrategy": "Say tax effects are not modeled and will be discussed at the review",
+    "readinessNote": "Objective note on Maya's progress, using only FACTS",
+    "talkingPoints": ["Topic 1", "Topic 2", "Topic 3"]
   }
 }`
 
   const responseText = await callGemini(prompt, systemInstruction, 'application/json')
-  if (!responseText) return DEFAULT_BRIEFING
+  if (!responseText) return { ...deterministic, source: 'engine' }
 
   try {
-    // Strip markdown code fences if any
-    const cleaned = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
-    const parsed = JSON.parse(cleaned)
-    return {
-      audioVoicenoteScript: parsed.audioVoicenoteScript || DEFAULT_BRIEFING.audioVoicenoteScript,
-      heirBriefing: parsed.heirBriefing || DEFAULT_BRIEFING.heirBriefing,
-      parentBriefing: parsed.parentBriefing || DEFAULT_BRIEFING.parentBriefing,
-    }
+    const report = { rejected: 0 }
+    const guarded = guardObject(parseJson(responseText), deterministic, allowed, report)
+    if (report.rejected) console.info(`Number guard replaced ${report.rejected} AI field(s) containing unverified numbers.`)
+    return { ...guarded, source: 'gemini', guardReplacements: report.rejected }
   } catch (parseErr) {
-    console.warn('JSON parse error from Gemini, using default fallback:', parseErr)
-    return DEFAULT_BRIEFING
+    console.warn('Could not read Gemini briefing, using the engine-written version:', parseErr)
+    return { ...deterministic, source: 'engine' }
   }
 }
 
 /**
- * Ask follow-up question to Advisor James Ortiz powered by Gemini
+ * Ask James: Gemini answers in words; numbers only from the fact sheet
  */
-export async function askAdvisorJames({ question, role = 'heir', currentBriefing = null, state = {} }) {
+function deterministicAnswer(question, role, facts) {
+  const q = question.toLowerCase()
+  const studio = facts.studio
+  const fam = facts.familyGoal
+  if (/studio|business|odds|chance|goal/.test(q) && studio) {
+    return `In our ${facts.paths} simulated futures, your studio goal is reached in ${Math.round(studio.probability * 10)} in 10. Spending less on travel or adjusting the stock share in My plan are the levers that move it most.`
+  }
+  if (/drop|dip|crash|fall|lose|loss|risk/.test(q)) {
+    return `In a bad case the money left after 30 years is about ${money(facts.ending.p10)}, versus ${money(facts.ending.p50)} typical. The Practice tab's market-drop scenario shows how each response plays out.`
+  }
+  if (/charter|values|green|climate|sustainab/.test(q)) {
+    return 'Every proposal is checked against the family charter. Open the Family Charter tab to see which principles your plan meets and which need a conversation.'
+  }
+  return role === 'heir'
+    ? `Good question. Your plan currently reaches the family wealth goal in ${fam ? Math.round(fam.probability * 10) : 0} in 10 futures. Let's go through the details at our next check-in.`
+    : `Maya's plan keeps the family wealth goal in ${fam ? Math.round(fam.probability * 10) : 0} in 10 simulated futures. I'll bring the full breakdown to our next family review.`
+}
+
+export async function askAdvisorJames({ question, role = 'heir', state = {} }) {
   const isHeir = role === 'heir'
-  const systemInstruction = `You are James Ortiz, trusted family wealth advisor at Northfield Wealth. You are answering a direct question from ${isHeir ? 'Maya Carter (age 24, heir)' : 'Elena Carter (mother and family matriarch)'}.
-Your tone for Maya is warm, educational, concise (2-3 sentences), empowering, and free of Wall Street intimidation.
-Your tone for Elena is polished, fiduciary, respectful, reassuring, and data-backed.
-Be direct and helpful.`
+  const facts = computeFamilyFacts(state)
+  const factText = factsToText(facts)
+  const allowed = allowedNumbers(factText)
 
-  const prompt = `Context:
-- Family: Carter Family ($12.4M portfolio, Northfield Wealth).
-- Maya's goal: Year 5 Design Studio ($950k) and $25k practice fund.
-- Latest briefing headline: "${currentBriefing?.heirBriefing?.headline || 'Q3 Wealth Review'}"
-- User Role: ${isHeir ? 'Maya (Heir)' : 'Elena (Parent)'}
-- User Question: "${question}"
+  const systemInstruction = `You are James Ortiz, the Carter family's wealth advisor at Northfield Wealth, answering ${isHeir ? 'Maya Carter (age 24, heir)' : 'Elena Carter (parent)'}.
+For Maya: warm, educational, 2-3 sentences, no jargon. For Elena: polished, careful, 2-3 sentences.
+${NUMBERS_RULE}`
 
-Please provide a concise, genuine, 2-3 sentence answer as James Ortiz.`
+  const prompt = `FACTS (computed by Heirloom's simulation engine; the only numbers you may use):
+${factText}
+
+Question from ${isHeir ? 'Maya' : 'Elena'}: "${question}"
+
+Answer in 2-3 sentences as James Ortiz.`
 
   const answer = await callGemini(prompt, systemInstruction)
-  if (!answer) {
-    return isHeir
-      ? `Great question, Maya! For your design studio timeline, maintaining a liquid buffer in high-yield reserves protects your runway without forcing us to sell equities during temporary dips. Let's discuss this at our Tuesday check-in.`
-      : `Elena, rest assured our downside modeling accounts for this scenario. We maintain a 24-month liquidity runway in municipal short-durations specifically to safeguard family distributions regardless of near-term market cycles.`
+  if (!answer) return deterministicAnswer(question, role, facts)
+  const bad = findUnverifiedNumbers(answer, allowed)
+  if (bad.length) {
+    console.info('Number guard rejected an AI answer with unverified numbers:', bad)
+    return deterministicAnswer(question, role, facts)
   }
-
   return answer.trim()
 }
 
 /**
- * Evaluate Investment Proposal against Family Charter using Gemini
+ * Charter alignment: scores from fixed rules; Gemini may only reword the summary
  */
 export async function evaluateCharterAlignment({
   proposal = null,
   charter = [],
   customThesis = '',
+  state = {},
 }) {
-  const proposalAmount = proposal?.amount || 25000
-  const proposalUse = proposal?.use || 'clean tech and practice sandbox fund'
-  const proposalWhy = proposal?.why || customThesis || 'Balanced growth with planetary sustainability'
-  const stockShare = proposal?.plan?.stockShare != null ? Math.round(proposal.plan.stockShare * 100) : 50
+  const facts = computeFamilyFacts({ ...state, charter, proposal: proposal?.plan ? proposal : state.proposal })
+  const text = [proposal?.use, proposal?.why, customThesis].filter(Boolean).join(' ')
+  // A free-text idea is scored on the amount written in it, if any
+  const amount = (customThesis && amountFromText(customThesis)) ?? proposal?.amount
+  const result = evaluateCharterRules(facts, { amount, text })
 
-  const principlesText = charter.map((p, i) => `${i + 1}. [${p.category}] ${p.title}: "${p.clause}"`).join('\n')
+  const ruleText = result.principleScores
+    .map((p) => `- ${p.title}: ${p.score == null ? 'not scored' : p.score + ' out of 100'} (${p.status}). ${p.comment}`)
+    .join('\n')
+  const factText = `${factsToText(facts)}\nCharter check (fixed rules):\nOverall: ${result.overallScore} out of 100.\n${ruleText}`
+  const allowed = allowedNumbers(factText)
 
-  const systemInstruction = `You are the Governance Engine at Northfield Wealth. You evaluate next-generation wealth proposals against the Carter Family Constitution/Charter.
-You analyze alignment fairly: celebrating when proposals fulfill values (like sustainability or entrepreneurship), while flagging when they push beyond agreed risk thresholds (like preservation or concentration).
-Respond ONLY in valid raw JSON matching the required schema.`
+  const systemInstruction = `You are James Ortiz, the Carter family's advisor. You explain a charter check that has already been scored by fixed rules. Do not change or add scores.
+${NUMBERS_RULE}
+Respond ONLY in raw JSON.`
+  const prompt = `FACTS:
+${factText}
 
-  const prompt = `Evaluate the following wealth proposal against the active Carter Family Constitution.
+Proposal text: "${text || 'none'}"
 
-Proposal Details:
-- Capital Request: $${proposalAmount.toLocaleString()}
-- Proposed Use: ${proposalUse}
-- Allocation: ${stockShare}% Equities / ${100 - stockShare - 10}% Fixed Income / 10% Real Estate
-- Stated Rationale: "${proposalWhy}"
-
-Carter Family Constitution Principles:
-${principlesText}
-
-Return a valid JSON object matching this schema:
-{
-  "overallScore": 88,
-  "verdict": "Strongly Aligned with Family Constitution",
-  "summary": "2-3 sentences summarizing how the proposal honors the family charter and where it innovates.",
-  "alignedPoints": [
-    "Specific principle honored and why",
-    "Another principle honored and why"
-  ],
-  "tensionPoints": [
-    "Any principle where the proposal tests boundaries or requires discussion"
-  ],
-  "principleScores": [
-    {
-      "id": "charter-1",
-      "title": "Multi-Generational Capital Preservation",
-      "score": 90,
-      "status": "aligned",
-      "comment": "1 sentence explanation"
-    }
-  ],
-  "advisorGuidance": "A constructive 2-sentence note from James Ortiz on how the family can reach unanimous agreement."
-}`
+Return JSON: { "summary": "2 sentences explaining the result for the family", "advisorGuidance": "2 sentences on how the family can reach agreement" }`
 
   const responseText = await callGemini(prompt, systemInstruction, 'application/json')
-
-  // Fallback in case of network issue
-  const fallbackResult = {
-    overallScore: 86,
-    verdict: "Strongly Aligned with Family Constitution",
-    summary: `Maya's proposal for $${proposalAmount.toLocaleString()} into ${proposalUse} honors the core pillar of Planetary Stewardship while keeping risk strictly bounded within the Level 2 sandbox limits.`,
-    alignedPoints: [
-      "Directly fulfills Principle 2 (Planetary Stewardship) through climate transition allocation.",
-      "Complies with Principle 3 (Sandbox Autonomy) by operating within the supervised $25k to $50k limits.",
-      "Protects Principle 4 (Productive Enterprise) by anchoring towards her Year 5 design studio runway."
-    ],
-    tensionPoints: [
-      "Principle 1 (Preservation): Elena may want verification that short-duration cash buffers remain untouched during market dips."
-    ],
-    principleScores: charter.map(c => ({
-      id: c.id,
-      title: c.title,
-      score: c.category === 'Sustainability' || c.category === 'Enterprise' ? 95 : 82,
-      status: 'aligned',
-      comment: `Adheres to the agreed guidelines set by ${c.author}.`
-    })),
-    advisorGuidance: "This proposal strikes an admirable balance between Maya's environmental values and Elena's focus on principal preservation. I recommend approval with standard quarterly reporting."
-  }
-
-  if (!responseText) return fallbackResult
-
+  if (!responseText) return { ...result, source: 'engine' }
   try {
-    const cleaned = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
-    const parsed = JSON.parse(cleaned)
-    return {
-      overallScore: parsed.overallScore ?? fallbackResult.overallScore,
-      verdict: parsed.verdict || fallbackResult.verdict,
-      summary: parsed.summary || fallbackResult.summary,
-      alignedPoints: parsed.alignedPoints || fallbackResult.alignedPoints,
-      tensionPoints: parsed.tensionPoints || fallbackResult.tensionPoints,
-      principleScores: parsed.principleScores || fallbackResult.principleScores,
-      advisorGuidance: parsed.advisorGuidance || fallbackResult.advisorGuidance,
-    }
+    const parsed = parseJson(responseText)
+    const words = guardObject(
+      { summary: parsed.summary, advisorGuidance: parsed.advisorGuidance },
+      { summary: result.summary, advisorGuidance: result.advisorGuidance },
+      allowed,
+    )
+    return { ...result, ...words, source: 'gemini' }
   } catch (err) {
-    console.warn('Error parsing charter evaluation from Gemini:', err)
-    return fallbackResult
+    console.warn('Could not read Gemini charter text, using rule-based wording:', err)
+    return { ...result, source: 'engine' }
   }
 }

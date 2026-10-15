@@ -1,49 +1,25 @@
 import { createContext, useContext, useEffect, useReducer } from 'react'
 import { PLAN_DEFAULTS, DEFAULT_CHARTER } from './data/demo.js'
+import { buildBriefing, computeFamilyFacts } from './engine/facts.js'
 
 // One shared demo state for all three roles, so switching roles live
 // shows the same proposal moving through the trust triangle.
 
-const STORAGE_KEY = 'heirloom-demo-v2'
+const STORAGE_KEY = 'heirloom-demo-v3' // v3: deterministic briefings and charter scores
 
+// The first advisor report is written by the engine from the starting
+// state, so every figure in it matches the Planner (no hardcoded numbers).
 export const DEFAULT_REPORT_RECORD = {
   id: 'report-initial',
   timestamp: Date.now() - 1000 * 60 * 45, // 45 mins ago
-  title: "Q3 Family Portfolio & Strategic Stewardship Review",
-  focusArea: "Clean Energy & Studio Milestone",
-  advisorTone: "Encouraging & Mentoring",
-  advisorNote: "Rebalanced 4% into sustainable infrastructure; preserved liquid buffer for Maya's design studio goal.",
+  title: 'Welcome briefing: your plan and the family goals',
+  focusArea: 'Studio Milestone & Family Wealth',
+  advisorTone: 'Encouraging & Mentoring',
+  advisorNote: "Every figure below comes from Heirloom's simulation engine, tested across 1,000 possible futures.",
   unreadHeir: true,
   unreadParent: true,
-  audioVoicenoteScript: "Hi Maya, James here. Quick 60-second update on the Carter portfolio. This quarter we saw healthy 7.8% gains, primarily driven by our strategic tilt into clean tech infrastructure and resilient dividend equities. For your $25,000 practice fund and your Year 5 design studio goal, this means we have comfortable downside protection and solid headroom. I love how you balanced equity upside with reserve cash in your recent proposals. Take a look at the breakdown below, and let me know if you want to jump on a quick call before our next family review.",
-  heirBriefing: {
-    headline: "Clean Tech Momentum & Steady Growth for Your Studio Goal",
-    summary: "The family portfolio gained +7.8% this quarter. More importantly, the 15% green transition allocation you advocated for outpaced traditional energy by 4.2%. We kept your $25,000 practice fund buffered against short-term market noise so you can test ideas with confidence.",
-    impactHighlight: "Your portfolio offset an estimated 142 metric tons of carbon this quarter through direct infrastructure green bonds.",
-    milestoneImpact: "On track: Your $950,000 Year 5 design studio milestone remains well-funded with an 88% probability of success under current market scenarios.",
-    jargonDecoded: [
-      { term: "Duration Hedging", explanation: "Locking in bond safety so sudden interest rate hikes don't hurt our cash reserves." },
-      { term: "Sharpe Ratio (1.42)", explanation: "A measure of return per unit of risk—basically proving we got good returns without gambling." },
-      { term: "Tranche Allocation", explanation: "Releasing portions of wealth gradually as you master new financial skills." }
-    ],
-    suggestedQuestions: [
-      "How will the upcoming Fed rate cuts affect my practice fund?",
-      "Can we reinvest some gains specifically into early-stage climate tech?",
-      "How does Elena feel about increasing my practice fund limit?"
-    ]
-  },
-  parentBriefing: {
-    headline: "Quarterly Review: Capital Preservation & Next-Gen Governance",
-    fiduciarySummary: "Total Carter Family portfolio stands at $12.4M (+7.8% YTD). Fixed-income duration was actively hedged to protect principal, and tax-loss harvesting in private credit generated $38,000 in offset value for year-end filing.",
-    capitalPreservation: "Downside stress testing confirms that even in a 2008-style liquidity shock, family living distributions and multi-generational trust reserves remain 100% unimpaired.",
-    taxStrategy: "Executed municipal bond transitions to maximize state and federal tax exemptions while maintaining liquidity tranches.",
-    readinessNote: "Maya is demonstrating high prudence. In her recent simulations, she allocated sufficient liquidity buffers rather than over-concentrating in speculative growth. Her decision score averaged 84/100.",
-    talkingPoints: [
-      "Review Maya's Level 2 progress fund proposal ($25,000 sandbox).",
-      "Confirm year-end philanthropic tax contribution through family foundation.",
-      "Align on upcoming 2028 estate tax exemption changes."
-    ]
-  }
+  source: 'engine',
+  ...buildBriefing(computeFamilyFacts({ level: 2, plan: PLAN_DEFAULTS, charter: DEFAULT_CHARTER })),
 }
 
 export const initialState = {

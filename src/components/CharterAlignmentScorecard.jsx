@@ -3,8 +3,10 @@ import { useDemo } from '../state.jsx'
 import { evaluateCharterAlignment } from '../engine/gemini.js'
 
 /**
- * Reusable Charter Alignment Scorecard powered by Gemini
- * Can evaluate Maya's active proposal or custom investment text
+ * Reusable Charter Alignment Scorecard
+ * Scores come from fixed rules plus the simulation engine (engine/facts.js);
+ * Gemini only rewords the summary and advice. Evaluates Maya's active
+ * proposal or custom investment text.
  */
 export function CharterAlignmentScorecard({ proposal = null, customThesis = '', compact = false }) {
   const { state, dispatch } = useDemo()
@@ -19,9 +21,11 @@ export function CharterAlignmentScorecard({ proposal = null, customThesis = '', 
     plan: state.plan,
   }
 
+  // Everything the rule-based score depends on is part of the cache key
+  const planKey = `${state.plan?.stockShare}_${state.plan?.travelPerYear}_${state.plan?.extraGoal}_${state.proposal?.status}`
   const cacheKey = customThesis
-    ? `thesis_${customThesis.slice(0, 30)}`
-    : `proposal_${activeProposal.amount}_${activeProposal.use}_${state.plan?.stockShare}`
+    ? `thesis_${customThesis.slice(0, 30)}_${planKey}`
+    : `proposal_${activeProposal.amount}_${activeProposal.use}_${planKey}`
 
   useEffect(() => {
     // Check if evaluation already cached in state
@@ -37,6 +41,7 @@ export function CharterAlignmentScorecard({ proposal = null, customThesis = '', 
       proposal: activeProposal,
       charter: state.charter,
       customThesis,
+      state,
     }).then((res) => {
       if (isMounted) {
         setEvaluation(res)
@@ -61,6 +66,7 @@ export function CharterAlignmentScorecard({ proposal = null, customThesis = '', 
         proposal: activeProposal,
         charter: state.charter,
         customThesis,
+        state,
       })
       setEvaluation(res)
       dispatch({
@@ -76,12 +82,12 @@ export function CharterAlignmentScorecard({ proposal = null, customThesis = '', 
   if (isLoading && !evaluation) {
     return (
       <div className="charter-scorecard card loading">
-        <div className="eval-loading-spinner">✨ Evaluating alignment with Gemini 2.5 Flash...</div>
+        <div className="eval-loading-spinner">Checking the plan against the family charter...</div>
       </div>
     )
   }
 
-  const score = evaluation?.overallScore ?? 86
+  const score = evaluation?.overallScore ?? 0
   const isHigh = score >= 80
   const isModerate = score >= 60 && score < 80
 
@@ -173,13 +179,15 @@ export function CharterAlignmentScorecard({ proposal = null, customThesis = '', 
           )}
 
           <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="badge-gemini">✨ Live Gemini 2.5 Audit</span>
+            <span className="badge-gemini" title="Each principle is scored by a fixed rule using the simulation engine's goal odds. Gemini only writes the summary and advice.">
+              Score: fixed rules + simulation engine{evaluation?.source === 'gemini' ? ' · Wording: Gemini' : ''}
+            </span>
             <button
               className="text-btn small"
               onClick={handleManualReevaluate}
               disabled={isLoading}
             >
-              {isLoading ? 'Re-evaluating...' : '↻ Re-evaluate Thesis'}
+              {isLoading ? 'Re-checking...' : '↻ Re-check'}
             </button>
           </div>
         </div>

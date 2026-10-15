@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useDemo } from '../state.jsx'
-import { SCENARIOS, GOAL_OPTIONS } from '../data/demo.js'
+import { SCENARIOS } from '../data/demo.js'
 import { evaluateScenario, scoreDecision, REASONING_FACTORS } from '../engine/engine.js'
 import { FuturesDots, RangeBar, money } from '../components/visuals.jsx'
 import { Explainer, ExplainBtn } from '../components/Explainer.jsx'
@@ -9,43 +9,15 @@ import { Explainer, ExplainBtn } from '../components/Explainer.jsx'
 const TAG_LABELS = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' }
 const difficultyTag = (s) => s.tags?.find((t) => TAG_LABELS[t]) || 'beginner'
 
-function ScenarioPicker({ onPick, done, profile }) {
-  const goalIds = profile?.goals || []
-  const [filter, setFilter] = useState('all')
-
-  const filtered = SCENARIOS.filter((s) => {
-    if (filter === 'suggested') {
-      return s.tags?.some((t) => goalIds.includes(t)) ||
-        goalIds.some((g) => GOAL_OPTIONS.find((o) => o.id === g)?.scenarios?.includes(s.id))
-    }
-    if (filter === 'new') return !(s.id in done)
-    return true
-  })
-
+function ScenarioPicker({ onPick, done }) {
   return (
     <div>
       <h1>Practice</h1>
       <p className="lede">Real situations your family could face. Make a call, explain why, and see how it plays out across 1,000 possible futures.</p>
 
-      <div className="scenario-filters">
-        {['all', 'suggested', 'new'].map((f) => (
-          <button key={f} className={filter === f ? 'chip on' : 'chip'} onClick={() => setFilter(f)}>
-            <input type="checkbox" style={{ display: 'none' }} />
-            {f === 'all' ? 'All scenarios' : f === 'suggested' ? 'Suggested for you' : 'Not yet done'}
-          </button>
-        ))}
-      </div>
-
-      {filter === 'suggested' && goalIds.length === 0 && (
-        <div className="callout" style={{ marginBottom: '1rem' }}>
-          Set your financial goals in your profile to get personalized suggestions.
-        </div>
-      )}
-
       <div className="scenario-list">
-        {filtered.map((s) => {
+        {SCENARIOS.map((s) => {
           const difficulty = difficultyTag(s)
-          const isSuggested = goalIds.some((g) => GOAL_OPTIONS.find((o) => o.id === g)?.scenarios?.includes(s.id))
           return (
             <button key={s.id} className="scenario-tile" onClick={() => onPick(s.id)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'baseline' }}>
@@ -54,9 +26,7 @@ function ScenarioPicker({ onPick, done, profile }) {
               </div>
               <span className="scenario-story">{s.story}</span>
               <span className="scenario-meta">
-                {done[s.id]
-                  ? `Completed · Decision score ${done[s.id].score.total}`
-                  : `${s.years}-year outlook${isSuggested ? ' · Suggested for you' : ''}`}
+                {done[s.id] ? `Completed, decision score ${done[s.id].score.total}` : `${s.years}-year outlook`}
               </span>
             </button>
           )
@@ -202,7 +172,6 @@ export default function Simulation() {
       <ScenarioPicker
         done={state.simulations}
         onPick={(id) => { reset(); setActive(id) }}
-        profile={state.profile}
       />
     )
   }

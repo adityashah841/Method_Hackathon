@@ -7,8 +7,8 @@
 //  1. computeFamilyFacts(state)  -> every figure, computed by engine.js
 //  2. factsToText(facts)         -> the only numbers Gemini is shown
 //  3. findUnverifiedNumbers()    -> rejects AI text with numbers not on the fact sheet
-//  4. buildBriefing / evaluateCharterRules -> deterministic versions used as the
-//     default content and whenever the AI is offline or fails the guard
+//  4. buildBriefing -> deterministic briefing, used as the default content and
+//     whenever the AI is offline or fails the guard
 
 import { FAMILY, LADDER, SCENARIOS, planGoals, planWeights, PLAN_DEFAULTS } from '../data/demo.js'
 import { simulatePlan, expectedReturn } from './engine.js'
@@ -66,8 +66,7 @@ export function computeFamilyFacts(state = {}) {
     proposal: state.proposal
       ? { amount: state.proposal.amount, use: state.proposal.use, why: state.proposal.why, status: state.proposal.status }
       : null,
-    charter: (state.charter || []).map((p) => ({ id: p.id, title: p.title, category: p.category, clause: p.clause, status: p.status })),
-    paths: 1000,
+    paths: '1,000',
   }
 }
 
@@ -87,7 +86,6 @@ export function factsToText(f) {
     f.proposal
       ? `${f.heirName}'s proposal: ${money(f.proposal.amount)} into ${f.proposal.use} (status: ${f.proposal.status}). Reasoning: "${f.proposal.why}".`
       : `${f.heirName} has not proposed a plan yet.`,
-    ...f.charter.map((p) => `Charter principle "${p.title}" (${p.category}, ${p.status}): ${p.clause}`),
   ]
   return lines.join('\n')
 }
@@ -168,11 +166,6 @@ export function buildBriefing(f) {
   const mix = `${f.stockPct}% stocks, ${f.bondPct}% bonds and ${f.realEstatePct}% real estate`
 
   return {
-    audioVoicenoteScript:
-      `Hi ${f.heirName}, ${f.advisorName.split(' ')[0]} here. Quick update on your plan. With ${mix}, ` +
-      (studio ? `your design studio goal is reached in ${outOf10(studio.probability)} in 10 of our ${f.paths} simulated futures, ` : '') +
-      (fam ? `and the family wealth goal in ${outOf10(fam.probability)} in 10. ` : '') +
-      `You're at level ${f.level} of ${f.totalLevels} on the Trust Ladder. Take a look at the breakdown, and let me know if you want to talk it through before our next family review.`,
     heirBriefing: {
       headline: studio && studio.probability >= 0.7
         ? 'Your studio goal is on track in most futures'
@@ -181,20 +174,10 @@ export function buildBriefing(f) {
         `Your plan puts ${mix}, which grows about ${f.typicalReturnPct}% in a typical year. ` +
         `We tested it across ${f.paths} possible futures rather than one forecast, so these are odds, not promises.`,
       impactHighlight:
-        'Your family charter asks for part of the growth money to support the climate transition. Your proposals are checked against that principle in the Family Charter tab.',
+        'Your proposal can reflect what you care about, like clean energy. James reviews it and your mom decides, so your values become part of the family plan.',
       milestoneImpact: studio
         ? `Your ${money(studio.amount)} studio goal ${studio.detail} is reached in ${outOf10(studio.probability)} in 10 futures (${pct(studio.probability)}).`
         : 'No studio goal is set in your plan.',
-      jargonDecoded: [
-        { term: 'Asset allocation', explanation: 'How your money is split between stocks, bonds and real estate.' },
-        { term: 'Diversification', explanation: 'Spreading money across many investments so one bad result can’t sink the plan.' },
-        { term: 'Volatility', explanation: 'How much an investment swings up and down from year to year.' },
-      ],
-      suggestedQuestions: [
-        'What would raise the odds for my studio goal?',
-        'What happens to my practice fund if the market drops?',
-        'How does my plan fit the family charter?',
-      ],
     },
     parentBriefing: {
       headline: fam && fam.probability >= 0.7
@@ -214,89 +197,5 @@ export function buildBriefing(f) {
         `Agree on what moves ${f.heirName} to the next Trust Ladder level.`,
       ],
     },
-  }
-}
-
-// ---- 4b. Deterministic charter scoring ---------------------------------------
-const CLIMATE_WORDS = /climat|sustainab|renewab|clean|green|esg|solar|wind|carbon|decarbon|environment/i
-const SPECULATIVE_WORDS = /leverag|speculat|crypto|token|margin|options/i
-
-// First dollar amount written in a free-text idea ("Allocate $60,000 to ...")
-export function amountFromText(text = '') {
-  const m = String(text).match(/\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|m|thousand|million)?/i)
-  return m ? extractNumbers(m[0])[0] : null
-}
-
-// Each rule reads only the plan, the engine's goal odds and the proposal.
-const RULES = {
-  Preservation: (f, ctx) => {
-    const p = f.familyGoal?.probability ?? 0
-    if (SPECULATIVE_WORDS.test(ctx.text)) {
-      return { score: 20, reason: 'Mentions leverage or speculation, which the charter rules out for family assets.' }
-    }
-    return {
-      score: Math.round(p * 100),
-      reason: `Family wealth goal is met in ${outOf10(p)} in 10 simulated futures.`,
-    }
-  },
-  Enterprise: (f) => {
-    const p = f.studio?.probability ?? 0
-    return {
-      score: Math.round(p * 100),
-      reason: `Design studio goal is funded in ${outOf10(p)} in 10 simulated futures.`,
-    }
-  },
-  Autonomy: (f, ctx) => {
-    const amt = ctx.amount
-    if (amt <= f.practiceFund) return { score: 100, reason: `${money(amt)} stays within the ${money(f.practiceFund)} practice fund.` }
-    if (amt <= 50_000) return { score: 70, reason: `${money(amt)} is above the practice fund but within the charter's upper limit.` }
-    return { score: 30, reason: `${money(amt)} is beyond the practice-fund range in the charter.` }
-  },
-  Governance: (f, ctx) => {
-    if (ctx.amount <= 100_000) return { score: 100, reason: `${money(ctx.amount)} is below the level that needs a joint family review.` }
-    const approved = f.proposal?.status === 'approved'
-    return approved
-      ? { score: 100, reason: 'Above the review threshold, and approved by the family.' }
-      : { score: 50, reason: 'Above the review threshold; needs joint family review and advisor sign-off.' }
-  },
-  Sustainability: (f, ctx) =>
-    CLIMATE_WORDS.test(ctx.text)
-      ? { score: 90, reason: 'The proposal explicitly supports climate or sustainability goals.' }
-      : { score: 50, reason: 'The proposal does not mention climate or sustainability, so it neither helps nor breaks this principle.' },
-}
-
-export function evaluateCharterRules(f, { amount, text }) {
-  const ctx = { amount: amount ?? f.practiceFund, text: text || '' }
-  const principleScores = f.charter.map((p) => {
-    const rule = RULES[p.category]
-    if (!rule) {
-      return { id: p.id, title: p.title, score: null, status: 'discuss', comment: 'No automatic check for this principle yet; discuss it as a family.' }
-    }
-    const { score, reason } = rule(f, ctx)
-    const status = score >= 70 ? 'aligned' : score >= 40 ? 'tension' : 'conflict'
-    return { id: p.id, title: p.title, score, status, comment: reason }
-  })
-  const scored = principleScores.filter((p) => p.score != null)
-  const average = scored.length ? Math.round(scored.reduce((a, p) => a + p.score, 0) / scored.length) : 0
-  // Breaking any principle is a hard flag: strengths elsewhere can't average it away
-  const breaks = principleScores.some((p) => p.status === 'conflict')
-  const overallScore = breaks ? Math.min(average, 50) : average
-  const verdict = breaks ? 'Conflicts with a family principle'
-    : overallScore >= 80 ? 'Strongly aligned with the family charter'
-      : overallScore >= 60 ? 'Mostly aligned, with points to discuss'
-        : 'Needs family discussion before approval'
-  const aligned = principleScores.filter((p) => p.status === 'aligned')
-  const tension = principleScores.filter((p) => p.status !== 'aligned')
-  return {
-    overallScore,
-    verdict,
-    summary: `${aligned.length} of ${principleScores.length} charter principles are met by this plan` +
-      (tension.length ? `; ${tension.length} need${tension.length === 1 ? 's' : ''} a family conversation.` : '.'),
-    alignedPoints: aligned.map((p) => `${p.title}: ${p.comment}`),
-    tensionPoints: tension.map((p) => `${p.title}: ${p.comment}`),
-    principleScores,
-    advisorGuidance: tension.length
-      ? `Before approving, let's talk through ${tension.map((p) => p.title).join(' and ')} together.`
-      : 'This plan fits every principle the family agreed on. I would support it, with the usual quarterly check-in.',
   }
 }

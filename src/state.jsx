@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useReducer } from 'react'
-import { PLAN_DEFAULTS, DEFAULT_CHARTER } from './data/demo.js'
+import { PLAN_DEFAULTS } from './data/demo.js'
 import { buildBriefing, computeFamilyFacts } from './engine/facts.js'
 
 // One shared demo state for all three roles, so switching roles live
 // shows the same proposal moving through the trust triangle.
 
-const STORAGE_KEY = 'heirloom-demo-v3' // v3: deterministic briefings and charter scores
+const STORAGE_KEY = 'heirloom-demo-v4' // v4: trimmed to the core demo story
 
 // The first advisor report is written by the engine from the starting
 // state, so every figure in it matches the Planner (no hardcoded numbers).
@@ -19,7 +19,7 @@ export const DEFAULT_REPORT_RECORD = {
   unreadHeir: true,
   unreadParent: true,
   source: 'engine',
-  ...buildBriefing(computeFamilyFacts({ level: 2, plan: PLAN_DEFAULTS, charter: DEFAULT_CHARTER })),
+  ...buildBriefing(computeFamilyFacts({ level: 2, plan: PLAN_DEFAULTS })),
 }
 
 export const initialState = {
@@ -33,14 +33,6 @@ export const initialState = {
   // proposal: { plan, probabilities, amount, use, why, status, advisor, parent, submittedAt }
   // status: 'submitted' | 'reviewed' | 'question' | 'approved' | 'declined'
 
-  // Personalization profile
-  profile: {
-    goals: [],         // selected goal ids from GOAL_OPTIONS
-    knowledge: null,   // 'beginner' | 'intermediate' | 'advanced'
-    learningStyle: [], // selected style ids
-    involvement: null, // involvement level id
-    onboarded: false,  // whether onboarding has been seen
-  },
 
   // Benefits / incentive state
   benefits: {
@@ -53,14 +45,9 @@ export const initialState = {
   // Decision history (timeline events)
   history: [],
 
-  // Gemini-powered personalized dual-lens briefing & voicenote
+  // Advisor briefings (engine numbers, Gemini wording)
   briefing: DEFAULT_REPORT_RECORD,
-  briefingQnA: [],
   advisorRecords: [DEFAULT_REPORT_RECORD],
-
-  // Family Constitution & Values Codex
-  charter: DEFAULT_CHARTER,
-  charterEvaluations: {},
 }
 
 function reducer(state, action) {
@@ -115,8 +102,6 @@ function reducer(state, action) {
     }
     case 'dismissLevelUp':
       return { ...state, justLeveledUp: false }
-    case 'profile':
-      return { ...state, profile: { ...state.profile, ...action.profile } }
     case 'benefits':
       return { ...state, benefits: { ...state.benefits, ...action.benefits } }
     case 'requestBenefitApproval': {
@@ -173,49 +158,6 @@ function reducer(state, action) {
         })
       }
     }
-    case 'addBriefingQnA':
-      return {
-        ...state,
-        briefingQnA: [...(state.briefingQnA || []), action.item],
-      }
-    case 'clearBriefingQnA':
-      return {
-        ...state,
-        briefingQnA: [],
-      }
-    case 'proposeCharterPrinciple':
-      return {
-        ...state,
-        charter: [...state.charter, action.principle],
-        history: [...state.history, { type: 'charter_proposed', title: action.principle.title, at: Date.now() }],
-      }
-    case 'voteCharterPrinciple': {
-      const { id, role, vote } = action
-      return {
-        ...state,
-        charter: state.charter.map((p) => {
-          if (p.id !== id) return p
-          const updated = {
-            ...p,
-            parentVote: role === 'parent' ? vote : p.parentVote,
-            heirVote: role === 'heir' ? vote : p.heirVote,
-          }
-          if (updated.parentVote === 'support' && updated.heirVote === 'support') {
-            updated.status = 'ratified'
-          }
-          return updated
-        }),
-        history: [...state.history, { type: 'charter_voted', principleId: id, role, vote, at: Date.now() }],
-      }
-    }
-    case 'setCharterEvaluation':
-      return {
-        ...state,
-        charterEvaluations: {
-          ...state.charterEvaluations,
-          [action.key]: action.evaluation,
-        },
-      }
     case 'reset':
       return { ...initialState }
     default:
@@ -232,14 +174,10 @@ function load() {
       return {
         ...initialState,
         ...saved,
-        profile: { ...initialState.profile, ...(saved.profile || {}) },
         benefits: { ...initialState.benefits, ...(saved.benefits || {}) },
         history: saved.history || [],
         briefing: saved.briefing || DEFAULT_REPORT_RECORD,
-        briefingQnA: saved.briefingQnA || [],
         advisorRecords: saved.advisorRecords?.length ? saved.advisorRecords : [DEFAULT_REPORT_RECORD],
-        charter: saved.charter?.length ? saved.charter : DEFAULT_CHARTER,
-        charterEvaluations: saved.charterEvaluations || {},
       }
     }
     return initialState

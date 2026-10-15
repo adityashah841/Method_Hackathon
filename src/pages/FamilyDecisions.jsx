@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useDemo } from '../state.jsx'
 import { FAMILY } from '../data/demo.js'
-import { CharterAlignmentScorecard } from '../components/CharterAlignmentScorecard.jsx'
 
 function formatDate(ms) {
   if (!ms) return ''
@@ -158,10 +157,6 @@ function ProposalDetail({ proposal, role, dispatch }) {
       <div className="card" style={{ marginTop: '1rem', padding: '1.25rem 1.5rem' }}>
         <h3>Plan details</h3>
         <p className="muted">Travel ${plan?.travelPerYear?.toLocaleString()} a year · {Math.round((plan?.stockShare || 0) * 100)}% in stocks · tested across 1,000 simulated futures.</p>
-      </div>
-
-      <div style={{ marginTop: '1rem' }}>
-        <CharterAlignmentScorecard proposal={proposal} compact={false} />
       </div>
 
       {advisor && (

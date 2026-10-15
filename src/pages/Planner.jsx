@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useDemo } from '../state.jsx'
 import { FAMILY, planGoals, planWeights } from '../data/demo.js'
-import { simulatePlan, expectedReturn, expectedVolatility } from '../engine/engine.js'
+import { simulatePlan, expectedReturn } from '../engine/engine.js'
 import { FanChart, FuturesDots, ProbabilityBar, money } from '../components/visuals.jsx'
 import { Explainer, ExplainBtn } from '../components/Explainer.jsx'
-import { CharterAlignmentScorecard } from '../components/CharterAlignmentScorecard.jsx'
 
 export function usePlanResult(plan) {
   return useMemo(() => {
@@ -36,127 +35,6 @@ export function GoalCards({ goals, probabilities }) {
 const mixLabel = (s) => (s <= 0.3 ? 'Steady' : s >= 0.7 ? 'Growth' : 'Balanced')
 
 // ---- Scenario presets for comparison mode -----------------------------------
-const SCENARIO_PRESETS = [
-  { id: 'conservative', label: 'Conservative', stockShare: 0.3, travelPerYear: 15_000, color: 'var(--spruce-soft)', textColor: 'var(--spruce)' },
-  { id: 'balanced', label: 'Balanced', stockShare: 0.5, travelPerYear: 20_000, color: 'var(--brass-soft)', textColor: '#7a5813' },
-  { id: 'growth', label: 'Growth', stockShare: 0.75, travelPerYear: 25_000, color: '#dae8f0', textColor: '#1a4a6e' },
-]
-
-function ScenarioComparison({ currentPlan }) {
-  const [scenarios, setScenarios] = useState(SCENARIO_PRESETS.map((p) => ({
-    ...p,
-    plan: { travelPerYear: p.travelPerYear, stockShare: p.stockShare, extraGoal: null },
-  })))
-  const [editing, setEditing] = useState(null)
-
-  const results = scenarios.map((s) => {
-    const goals = planGoals(s.plan.travelPerYear, null)
-    const weights = planWeights(s.plan.stockShare)
-    const result = simulatePlan({ startWealth: FAMILY.heirShare, weights, goals })
-    return { ...s, goals, weights, result }
-  })
-
-  const updateScenario = (id, patch) => {
-    setScenarios((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, plan: { ...s.plan, ...patch } } : s))
-    )
-  }
-
-  return (
-    <div className="comparison-section">
-      <h2>Compare three plans</h2>
-      <p className="muted">Adjust each scenario independently to see how different strategies affect your goals and long-term wealth. Numbers are illustrative, based on 1,000 simulated futures.</p>
-
-      <div className="comparison-grid">
-        {results.map((s) => (
-          <div key={s.id} className="comparison-col" style={{ borderTop: `4px solid ${s.textColor}` }}>
-            <div className="comparison-col-header" style={{ background: s.color }}>
-              <span className="comparison-col-label" style={{ color: s.textColor }}>{s.label}</span>
-              <button className="text-btn" style={{ fontSize: '0.85rem' }} onClick={() => setEditing(editing === s.id ? null : s.id)}>
-                {editing === s.id ? 'Done' : 'Edit'}
-              </button>
-            </div>
-
-            {editing === s.id ? (
-              <div className="comparison-col-edit">
-                <label className="slider" style={{ marginBottom: '1rem' }}>
-                  <span className="slider-head">
-                    <span>Stocks</span>
-                    <strong>{Math.round(s.plan.stockShare * 100)}%</strong>
-                  </span>
-                  <input type="range" min={0.2} max={0.9} step={0.1} value={s.plan.stockShare}
-                    onChange={(e) => updateScenario(s.id, { stockShare: Number(Number(e.target.value).toFixed(1)) })} />
-                  <span className="slider-scale"><span>Steadier</span><span>More growth</span></span>
-                </label>
-                <label className="slider">
-                  <span className="slider-head">
-                    <span>Travel / year</span>
-                    <strong>{money(s.plan.travelPerYear, { compact: false })}</strong>
-                  </span>
-                  <input type="range" min={5000} max={50000} step={5000} value={s.plan.travelPerYear}
-                    onChange={(e) => updateScenario(s.id, { travelPerYear: Number(e.target.value) })} />
-                  <span className="slider-scale"><span>$5k</span><span>$50k</span></span>
-                </label>
-              </div>
-            ) : (
-              <div className="comparison-col-stats">
-                <div className="comp-stat">
-                  <span className="muted">Allocation</span>
-                  <strong>{Math.round(s.plan.stockShare * 100)}% stocks</strong>
-                </div>
-                <div className="comp-stat">
-                  <span className="muted">Travel / year</span>
-                  <strong>{money(s.plan.travelPerYear, { compact: false })}</strong>
-                </div>
-                <div className="comp-stat">
-                  <span className="muted">Expected return</span>
-                  <strong>{(expectedReturn(s.weights) * 100).toFixed(1)}% / yr</strong>
-                </div>
-                <div className="comp-stat">
-                  <span className="muted">Volatility (±)</span>
-                  <strong>{(expectedVolatility(s.weights) * 100).toFixed(1)}%</strong>
-                </div>
-              </div>
-            )}
-
-            <div className="comparison-goals">
-              {s.goals.slice(0, 3).map((g) => (
-                <div key={g.id} className="comp-goal">
-                  <span className="comp-goal-name">{g.name}</span>
-                  <ProbabilityBar probability={s.result.probabilities[g.id]} />
-                  <span className="muted" style={{ fontSize: '0.8rem' }}>
-                    {Math.round(s.result.probabilities[g.id] * 10)} in 10 futures
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="comp-ending">
-              <span className="muted">Typical wealth after 30 yr</span>
-              <strong>{money(s.result.ending.p50)}</strong>
-              <span className="muted" style={{ fontSize: '0.8rem' }}>
-                Bad case: {money(s.result.ending.p10)} · Good: {money(s.result.ending.p90)}
-              </span>
-            </div>
-
-            <div className="comp-tradeoff">
-              {s.plan.stockShare <= 0.3 && (
-                <p className="muted small">Lower risk, lower typical growth. Better for short-term goals, but wealth may not keep pace with inflation over 30 years.</p>
-              )}
-              {s.plan.stockShare > 0.3 && s.plan.stockShare < 0.7 && (
-                <p className="muted small">Balanced between stability and growth. Broad diversification across market conditions.</p>
-              )}
-              {s.plan.stockShare >= 0.7 && (
-                <p className="muted small">Stronger long-term growth potential, but larger swings. Make sure liquid reserves are available for near-term goals.</p>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="assumption">Illustrative comparison only. All three scenarios use the same 1,000 simulated futures, so differences reflect the strategy, not luck. Not a forecast.</p>
-    </div>
-  )
-}
 
 // ---- Contextual explainer entries ------------------------------------------
 const EXPLAINER_TOPICS = {
@@ -186,7 +64,6 @@ export default function Planner() {
   const [amount, setAmount] = useState(FAMILY.smallFund)
   const [use, setUse] = useState('')
   const [why, setWhy] = useState('')
-  const [showComparison, setShowComparison] = useState(false)
   const [explainerTopic, setExplainerTopic] = useState(null)
   const [lastChangedMsg, setLastChangedMsg] = useState(null)
 
@@ -221,7 +98,7 @@ export default function Planner() {
       proposal: { plan: { ...plan }, probabilities: r.probabilities, ending: r.ending, amount: Number(amount), use, why },
     })
     setProposing(false)
-    dispatch({ type: 'go', page: 'decisions' })
+    dispatch({ type: 'go', page: 'proposal' })
   }
 
   return (
@@ -298,20 +175,6 @@ export default function Planner() {
         <p className="muted">The band runs from a bad case to a good case; the line is the typical path. It widens because the future gets less certain the further out we look.</p>
         <FanChart fan={r.fan} marker={{ year: 5, label: 'Studio paid for' }} />
         <p className="assumption">Illustrative assumptions, not a forecast. Ignores inflation and taxes. Based on 1,000 simulated futures.</p>
-      </section>
-
-      <section style={{ marginTop: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2>Compare scenarios</h2>
-          <button className="btn" onClick={() => setShowComparison((v) => !v)}>
-            {showComparison ? 'Hide comparison' : 'Compare 3 plans'}
-          </button>
-        </div>
-        {showComparison && <ScenarioComparison currentPlan={plan} />}
-      </section>
-
-      <section style={{ marginTop: '2rem' }}>
-        <CharterAlignmentScorecard compact={true} />
       </section>
 
       <section className="propose">

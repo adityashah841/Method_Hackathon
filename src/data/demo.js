@@ -11,69 +11,6 @@ export const FAMILY = {
   smallFund: 25_000,
 }
 
-export const DEFAULT_CHARTER = [
-  {
-    id: 'charter-1',
-    title: 'Multi-Generational Capital Preservation',
-    category: 'Preservation',
-    clause: 'Core family trust assets must be managed to withstand prolonged downturns; no speculative leverage that could impair 30-year wealth continuity.',
-    author: 'Elena Carter',
-    role: 'parent',
-    status: 'ratified',
-    parentVote: 'support',
-    heirVote: 'support',
-    advisorNote: 'Fiduciary benchmark: maintains a 3-year cash flow and short-duration bond buffer.',
-  },
-  {
-    id: 'charter-2',
-    title: 'Planetary Stewardship & Climate Transition',
-    category: 'Sustainability',
-    clause: 'At least 15% to 25% of growth capital should be allocated to renewable infrastructure, decarbonization, or ESG-screened enterprises.',
-    author: 'Maya Carter',
-    role: 'heir',
-    status: 'ratified',
-    parentVote: 'support',
-    heirVote: 'support',
-    advisorNote: 'Enables values-aligned growth while capturing infrastructure yield.',
-  },
-  {
-    id: 'charter-3',
-    title: 'Graduated Financial Autonomy via Sandboxes',
-    category: 'Autonomy',
-    clause: 'The next generation earns increasing investment authority through demonstrated practice and simulations, starting with a $25,000 to $50,000 practice fund.',
-    author: 'James Ortiz',
-    role: 'advisor',
-    status: 'ratified',
-    parentVote: 'support',
-    heirVote: 'support',
-    advisorNote: 'Provides a safe learning environment with pre-trade advisor oversight.',
-  },
-  {
-    id: 'charter-4',
-    title: 'Productive Enterprise & Human Capital',
-    category: 'Enterprise',
-    clause: 'Wealth should act as a launchpad for meaningful work and entrepreneurship (such as Maya’s design studio) rather than passive consumption.',
-    author: 'Maya & Elena',
-    role: 'heir',
-    status: 'ratified',
-    parentVote: 'support',
-    heirVote: 'support',
-    advisorNote: 'Encourages commercial discipline; funded via defined milestones.',
-  },
-  {
-    id: 'charter-5',
-    title: 'Consensual Family Governance & Transparency',
-    category: 'Governance',
-    clause: 'Any major strategic asset reallocation or unlisted venture allocation over $100,000 requires joint family review and advisor fiduciary sign-off.',
-    author: 'Elena Carter',
-    role: 'parent',
-    status: 'ratified',
-    parentVote: 'support',
-    heirVote: 'support',
-    advisorNote: 'Prevents unilateral family friction and promotes transparent dialogue.',
-  },
-]
-
 export const LADDER = [
   {
     level: 1,
@@ -101,7 +38,7 @@ export const LADDER = [
     unlock: 'Run the small fund yourself',
     description: 'Practice making decisions with a limited, supervised practice fund or simulated allocation.',
     criteria: [
-      { id: 'two_scenarios', label: 'Complete at least two practice scenarios', kind: 'simulation_count', count: 2 },
+      { id: 'one_scenario_3', label: 'Complete a practice scenario', kind: 'simulation' },
       { id: 'submit_plan', label: 'Submit a proposed plan with written rationale', kind: 'proposal' },
       { id: 'advisor_review', label: 'Receive advisor review from James', kind: 'advisor_review' },
       { id: 'parent_approved', label: 'Receive family approval from Elena', kind: 'parent_approval' },
@@ -414,104 +351,5 @@ export const SCENARIOS = [
     ],
     lesson:
       'Selling an underperformer after a bad stretch often means selling near the bottom. Diversification means accepting that not everything performs at the same time—that\'s the point. Trimming can be rational if concentration has grown too large.',
-  },
-]
-
-// ---- Personalization options ------------------------------------------------
-export const GOAL_OPTIONS = [
-  { id: 'business', label: 'Start a business', scenarios: ['business-withdrawal'], icon: '🏢' },
-  { id: 'home', label: 'Buy a home', scenarios: ['family-liquidity'], icon: '🏡' },
-  { id: 'education', label: 'Fund further education', scenarios: ['family-liquidity'], icon: '🎓' },
-  { id: 'charity', label: 'Support charitable causes', scenarios: ['family-liquidity'], icon: '💚' },
-  { id: 'wealth', label: 'Preserve family wealth', scenarios: ['concentration', 'underperformance'], icon: '🌿' },
-  { id: 'independence', label: 'Build independent financial security', scenarios: ['market-drop', 'inflation'], icon: '🔐' },
-  { id: 'lifestyle', label: 'Travel or pursue lifestyle goals', scenarios: ['market-drop'], icon: '✈️' },
-]
-
-export const KNOWLEDGE_LEVELS = [
-  { id: 'beginner', label: 'Beginner', description: 'New to investing and financial planning' },
-  { id: 'intermediate', label: 'Intermediate', description: 'Comfortable with basic concepts' },
-  { id: 'advanced', label: 'Advanced', description: 'Familiar with portfolio theory and financial analysis' },
-]
-
-export const LEARNING_STYLES = [
-  { id: 'interactive', label: 'Short interactive lessons' },
-  { id: 'scenario', label: 'Scenario-based learning' },
-  { id: 'charts', label: 'Charts and numerical explanations' },
-  { id: 'written', label: 'Detailed written explanations' },
-]
-
-export const INVOLVEMENT_LEVELS = [
-  { id: 'observe', label: 'Learn about family finances' },
-  { id: 'propose', label: 'Propose financial plans' },
-  { id: 'supervised', label: 'Participate in supervised decisions' },
-  { id: 'responsible', label: 'Gradually assume more responsibility' },
-]
-
-// ---- Privacy permissions config -------------------------------------------
-export const PERMISSION_CATEGORIES = [
-  {
-    id: 'portfolio',
-    label: 'Portfolio overview',
-    description: 'Top-level asset allocation and total value',
-    maya: 'view',
-    james: 'view',
-    elena: 'view',
-  },
-  {
-    id: 'goals',
-    label: 'Personal goals',
-    description: 'Maya\'s selected financial goals and priorities',
-    maya: 'view+edit',
-    james: 'view',
-    elena: 'view',
-  },
-  {
-    id: 'learning',
-    label: 'Learning progress',
-    description: 'Scenario completions, decision scores, and educational progress',
-    maya: 'view',
-    james: 'view',
-    elena: 'view',
-  },
-  {
-    id: 'plans',
-    label: 'Proposed financial plans',
-    description: 'Draft and submitted financial plans',
-    maya: 'view+edit',
-    james: 'view',
-    elena: 'view',
-  },
-  {
-    id: 'advisor_feedback',
-    label: 'Advisor feedback',
-    description: 'James\'s notes, recommendations, and review comments',
-    maya: 'view',
-    james: 'view+edit',
-    elena: 'view',
-  },
-  {
-    id: 'decisions',
-    label: 'Decision history',
-    description: 'Record of approvals, revisions, and milestones',
-    maya: 'view',
-    james: 'view',
-    elena: 'view',
-  },
-  {
-    id: 'benefits',
-    label: 'Heirloom Progress Benefits',
-    description: 'APY bonus eligibility status and qualification milestones',
-    maya: 'view',
-    james: 'view',
-    elena: 'view',
-  },
-  {
-    id: 'profile',
-    label: 'Personal profile & preferences',
-    description: 'Maya\'s knowledge level, learning style, and involvement preferences',
-    maya: 'view+edit',
-    james: 'view',
-    elena: 'hidden',
   },
 ]

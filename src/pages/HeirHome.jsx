@@ -1,17 +1,13 @@
-import { useState } from 'react'
 import { useDemo } from '../state.jsx'
-import { FAMILY, LADDER, SCENARIOS, GOAL_OPTIONS, BENEFITS } from '../data/demo.js'
+import { FAMILY, LADDER, SCENARIOS, BENEFITS } from '../data/demo.js'
 import { TrustLadder } from '../components/visuals.jsx'
 import { useBenefitsMilestones } from './Benefits.jsx'
-import { ProfileEditor } from './Onboarding.jsx'
-import Onboarding from './Onboarding.jsx'
 import { HeirBriefingSection } from '../components/GeminiBriefing.jsx'
 
-// What Maya should do next, personalized by profile and state
+// What Maya should do next: one card, one action
 function nextStep(state) {
   const p = state.proposal
   const done = Object.keys(state.simulations).length
-  const { profile } = state
 
   // Pending feedback/approval first
   if (p?.status === 'question') {
@@ -37,7 +33,7 @@ function nextStep(state) {
       title: `${FAMILY.advisor.name} is reviewing your proposal`,
       body: "You'll see his notes here as soon as he's done.",
       action: 'View proposal',
-      page: 'decisions',
+      page: 'proposal',
       tag: 'In review',
     }
   }
@@ -45,8 +41,8 @@ function nextStep(state) {
     return {
       title: `Waiting for ${FAMILY.parent.name}'s decision`,
       body: `${FAMILY.advisor.name.split(' ')[0]} reviewed your plan and passed it to your mom.`,
-      action: 'View in Family Decisions',
-      page: 'decisions',
+      action: 'View proposal',
+      page: 'proposal',
       tag: 'In review',
     }
   }
@@ -60,24 +56,12 @@ function nextStep(state) {
     }
   }
 
-  // Personalized steps based on goals
-  const goalIds = profile.goals || []
   if (!done) {
-    const suggestedScenario = goalIds.length > 0
-      ? SCENARIOS.find((s) => s.tags?.some((t) => goalIds.some((g) => {
-          const gObj = GOAL_OPTIONS.find((o) => o.id === g)
-          return gObj?.scenarios?.includes(s.id)
-        })))
-      : null
-    const scenario = suggestedScenario || SCENARIOS[0]
     return {
-      title: `Try a scenario: ${scenario.title.toLowerCase()}`,
-      body: profile.goals.includes('business')
-        ? 'Practice a situation where you might need to fund your design studio from the portfolio.'
-        : 'Make a call on a real situation your family could face, and see how it plays out across 1,000 possible futures.',
+      title: `Try a scenario: ${SCENARIOS[0].title.charAt(0).toLowerCase() + SCENARIOS[0].title.slice(1)}`,
+      body: 'Make a call on a real situation your family could face, and see how it plays out across 1,000 possible futures.',
       action: 'Start the scenario',
       page: 'practice',
-      why: profile.goals.length > 0 ? `Suggested because you selected "${GOAL_OPTIONS.find((o) => profile.goals.includes(o.id))?.label || 'your goals'}" as a priority.` : null,
     }
   }
   if (!p) {
@@ -94,23 +78,6 @@ function nextStep(state) {
     action: 'Try a scenario',
     page: 'practice',
   }
-}
-
-function progress(state) {
-  const p = state.proposal
-  if (state.level >= 3) {
-    return [
-      { label: 'Get your plan approved', done: true },
-      { label: 'Complete both scenarios', done: Object.keys(state.simulations).length >= SCENARIOS.length },
-      { label: 'Run the fund for a quarter', done: false },
-      { label: 'Pass a quarterly review', done: false },
-    ]
-  }
-  return [
-    { label: 'Complete a scenario', done: Object.keys(state.simulations).length > 0 },
-    { label: 'Propose a plan', done: !!p },
-    { label: 'Get it approved', done: p?.status === 'approved' },
-  ]
 }
 
 function BenefitsSummary({ state, dispatch }) {
@@ -144,41 +111,6 @@ function BenefitsSummary({ state, dispatch }) {
         <span style={{ width: `${pct}%` }} />
       </div>
       <p className="muted small">{statusText}</p>
-    </div>
-  )
-}
-
-function PersonalizedScenarioSuggestions({ profile, simulations, dispatch }) {
-  const goalIds = profile.goals || []
-  if (goalIds.length === 0) return null
-
-  const suggested = SCENARIOS.filter((s) => {
-    const goalObj = GOAL_OPTIONS.find((g) => goalIds.includes(g.id))
-    return goalObj?.scenarios?.includes(s.id) || s.tags?.some((t) => goalIds.includes(t))
-  }).filter((s) => !(s.id in simulations)).slice(0, 2)
-
-  if (suggested.length === 0) return null
-
-  const goalLabel = GOAL_OPTIONS.find((o) => goalIds.includes(o.id))?.label || 'your goals'
-
-  return (
-    <div style={{ marginBottom: '1.5rem' }}>
-      <p className="muted small" style={{ marginBottom: '0.5rem' }}>
-        Suggested because you selected <strong>{goalLabel}</strong> as a priority:
-      </p>
-      <div className="scenario-list" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        {suggested.map((s) => (
-          <button
-            key={s.id}
-            className="scenario-tile"
-            onClick={() => dispatch({ type: 'go', page: 'practice' })}
-          >
-            <span className="scenario-title" style={{ fontSize: '1rem' }}>{s.title}</span>
-            <span className="scenario-story" style={{ fontSize: '0.9rem' }}>{s.story.slice(0, 80)}…</span>
-            <span className="scenario-meta">{s.years}-year outlook</span>
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
@@ -236,7 +168,7 @@ function TrustLadderDetail({ state }) {
       return `Maya has completed ${simCount} practice scenarios and demonstrated an understanding of risk and diversification. Her next step is to create and propose a financial plan for the family's practice fund.`
     }
     if (simCount === 1) {
-      return `Maya has completed 1 practice scenario. Her next step is to complete a second scenario and build a proposed financial plan to review with ${FAMILY.advisor.name}.`
+      return `Maya has completed 1 practice scenario. Her next step is to build a proposed financial plan to review with ${FAMILY.advisor.name}.`
     }
     return `Maya is exploring financial fundamentals. Her next step is to complete a practice scenario to build her decision score and understanding.`
   })()
@@ -268,29 +200,15 @@ function TrustLadderDetail({ state }) {
 
 export default function HeirHome() {
   const { state, dispatch } = useDemo()
-  const [showProfile, setShowProfile] = useState(false)
-  const [showOnboarding, setShowOnboarding] = useState(!state.profile.onboarded)
 
   const step = nextStep(state)
   const current = LADDER.find((l) => l.level === state.level)
   const next = LADDER.find((l) => l.level === state.level + 1)
-  const steps = progress(state)
-  const doneCount = steps.filter((s) => s.done).length
   const feedback = state.proposal?.parent?.message
     ? { who: FAMILY.parent.name, text: state.proposal.parent.message }
     : state.proposal?.advisor?.comment
       ? { who: FAMILY.advisor.name, text: state.proposal.advisor.comment }
       : { who: FAMILY.advisor.name, text: "Welcome aboard, Maya. Start with the market-drop scenario: there's no wrong answer, only reasoning to learn from." }
-
-  const knowledgeNote = state.profile.knowledge === 'beginner'
-    ? 'We\'ll explain terms in plain English as you go.'
-    : state.profile.knowledge === 'advanced'
-    ? 'We\'ll include deeper analysis and show you key numerical assumptions.'
-    : null
-
-  if (showOnboarding) {
-    return <Onboarding onDone={() => setShowOnboarding(false)} />
-  }
 
   return (
     <div className="home-grid">
@@ -304,58 +222,20 @@ export default function HeirHome() {
           </div>
         )}
 
-        <div className="home-hero">
-          <div>
-            <h1>Hi {FAMILY.heir.name}</h1>
-            <p className="lede">
-              You're at level {state.level}, {current.name}.{' '}
-              {next ? `Next up is ${next.name}: ${next.unlock.toLowerCase()}.` : 'You\'ve completed the Trust Ladder.'}
-            </p>
-            {knowledgeNote && <p className="muted" style={{ fontSize: '0.9rem', marginTop: '-0.75rem', marginBottom: '1rem' }}>{knowledgeNote}</p>}
-          </div>
-          <button className="text-btn" onClick={() => setShowProfile((v) => !v)} style={{ whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
-            {showProfile ? 'Close profile' : 'Edit profile'}
-          </button>
-        </div>
-
-        {showProfile && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <ProfileEditor onClose={() => setShowProfile(false)} />
-          </div>
-        )}
+        <h1>Hi {FAMILY.heir.name}</h1>
+        <p className="lede">
+          You're at level {state.level}, {current.name}.{' '}
+          {next ? `Next up is ${next.name}: ${next.unlock.toLowerCase()}.` : 'You\'ve completed the Trust Ladder.'}
+        </p>
 
         <article className="next-step">
           <p className="next-kicker">{step.tag || 'Your next step'}</p>
           <h2>{step.title}</h2>
           <p>{step.body}</p>
-          {step.why && <p className="muted small">{step.why}</p>}
           <button className="btn primary" onClick={() => dispatch({ type: 'go', page: step.page })}>
             {step.action}
           </button>
         </article>
-
-        <PersonalizedScenarioSuggestions
-          profile={state.profile}
-          simulations={state.simulations}
-          dispatch={dispatch}
-        />
-
-        <HeirBriefingSection />
-
-        {next && (
-          <div className="progress" style={{ marginBottom: '1.25rem' }}>
-            <div className="progress-head">
-              <span>Progress to {next.name}</span>
-              <span>{doneCount} of {steps.length}</span>
-            </div>
-            <div className="progress-track"><span style={{ width: `${(doneCount / steps.length) * 100}%` }} /></div>
-            <ul className="checklist">
-              {steps.map((s) => (
-                <li key={s.label} className={s.done ? 'done' : ''}>{s.label}</li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         <BenefitsSummary state={state} dispatch={dispatch} />
 
@@ -363,6 +243,8 @@ export default function HeirHome() {
           <p>{feedback.text}</p>
           <cite>{feedback.who}</cite>
         </blockquote>
+
+        <HeirBriefingSection />
       </section>
 
       <aside className="home-ladder">

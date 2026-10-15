@@ -3,13 +3,10 @@ import { FAMILY } from './data/demo.js'
 import HeirHome from './pages/HeirHome.jsx'
 import Simulation from './pages/Simulation.jsx'
 import Planner from './pages/Planner.jsx'
-import Proposal from './pages/Proposal.jsx'
 import ParentHome from './pages/ParentHome.jsx'
 import Benefits from './pages/Benefits.jsx'
 import FamilyDecisions from './pages/FamilyDecisions.jsx'
-import Privacy from './pages/Privacy.jsx'
 import AdvisorDashboard from './pages/AdvisorDashboard.jsx'
-import FamilyCharter from './pages/FamilyCharter.jsx'
 
 const ROLES = [
   { id: 'heir', label: `${FAMILY.heir.name} (heir)` },
@@ -17,26 +14,20 @@ const ROLES = [
   { id: 'parent', label: `${FAMILY.parent.name} (parent)` },
 ]
 
+// Three steps of the story, one screen each: practice, plan, decide
 const TABS = {
   heir: [
     { id: 'home', label: 'Home' },
     { id: 'practice', label: 'Practice' },
     { id: 'plan', label: 'My plan', also: ['proposal'] },
-    { id: 'charter', label: 'Family Charter 📜' },
     { id: 'benefits', label: 'Benefits' },
-    { id: 'decisions', label: 'Family decisions' },
   ],
   advisor: [
     { id: 'review', label: 'Dashboard' },
-    { id: 'charter', label: 'Family Charter 📜' },
-    { id: 'decisions', label: 'Decision room' },
-    { id: 'privacy', label: 'Permissions' },
   ],
   parent: [
     { id: 'home', label: 'Home' },
-    { id: 'charter', label: 'Family Charter 📜' },
     { id: 'decisions', label: 'Decision room' },
-    { id: 'privacy', label: 'Permissions' },
   ],
 }
 
@@ -44,33 +35,16 @@ function Page() {
   const { state } = useDemo()
   const { role, page } = state
 
-  if (page === 'charter') return <FamilyCharter />
-
   if (role === 'heir') {
     if (page === 'practice') return <Simulation />
     if (page === 'plan') return <Planner />
     if (page === 'proposal') return <FamilyDecisions />
     if (page === 'benefits') return <Benefits />
-    if (page === 'decisions') return <FamilyDecisions />
-    if (page === 'privacy') return <Privacy />
     return <HeirHome />
   }
-
-  if (role === 'advisor') {
-    if (page === 'review') return <AdvisorDashboard />
-    if (page === 'decisions') return <FamilyDecisions />
-    if (page === 'privacy') return <Privacy />
-    return <AdvisorDashboard />
-  }
-
-  if (role === 'parent') {
-    if (page === 'home') return <ParentHome />
-    if (page === 'decisions') return <FamilyDecisions />
-    if (page === 'privacy') return <Privacy />
-    return <ParentHome />
-  }
-
-  return <FamilyDecisions />
+  if (role === 'advisor') return <AdvisorDashboard />
+  if (page === 'decisions') return <FamilyDecisions />
+  return <ParentHome />
 }
 
 function Shell() {
@@ -91,7 +65,8 @@ function Shell() {
   const tabBadge = (tabId) => {
     if (tabId === 'home' && (heirUnreadNotes || parentUnreadNotes)) return true
     if (tabId === 'review' && (advisorPending || advisorBenefitPending)) return true
-    if (tabId === 'decisions' && (advisorPending || parentPending || heirFeedbackPending)) return true
+    if (tabId === 'decisions' && parentPending) return true
+    if (tabId === 'plan' && heirFeedbackPending) return true
     if (tabId === 'benefits' && heirBenefitApproved) return true
     return false
   }
@@ -135,10 +110,7 @@ function Shell() {
 
       <footer className="foot">
         <span>Demo with a fictional family. Numbers are illustrative, not financial advice. No real financial products or transactions.</span>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button className="text-btn" onClick={() => dispatch({ type: 'go', page: 'privacy' })}>Permissions &amp; Transparency</button>
-          <button className="text-btn" onClick={() => dispatch({ type: 'reset' })}>Reset demo</button>
-        </div>
+        <button className="text-btn" onClick={() => dispatch({ type: 'reset' })}>Reset demo</button>
       </footer>
     </div>
   )

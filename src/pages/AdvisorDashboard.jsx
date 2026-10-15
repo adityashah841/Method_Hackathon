@@ -137,8 +137,6 @@ export default function AdvisorDashboard() {
 
       <MayaReadinessSummary state={state} />
 
-      <AdvisorBriefingStudio />
-
       <div className="advisor-grid">
         <div className="advisor-main">
           <section>
@@ -236,6 +234,8 @@ export default function AdvisorDashboard() {
           </div>
         </aside>
       </div>
+
+      <AdvisorBriefingStudio />
     </div>
   )
 }

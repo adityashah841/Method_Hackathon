@@ -1,18 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useDemo } from '../state.jsx'
 import { FAMILY, planGoals, planWeights } from '../data/demo.js'
 import { simulatePlan, expectedReturn } from '../engine/engine.js'
+import { suggestAllocation, describeMix, OPTION_BY_ID } from '../engine/allocate.js'
 import { FanChart, FuturesDots, ProbabilityBar, money } from '../components/visuals.jsx'
 import { Explainer, ExplainBtn } from '../components/Explainer.jsx'
+import InvestmentPrefs from '../components/InvestmentPrefs.jsx'
+import MixEditor from '../components/MixEditor.jsx'
 
 export function usePlanResult(plan) {
+  const allocKey = JSON.stringify(plan.alloc)
   return useMemo(() => {
     const goals = planGoals(plan.travelPerYear, plan.extraGoal)
-    const weights = planWeights(plan.stockShare)
+    const weights = planWeights(plan)
     const result = simulatePlan({ startWealth: FAMILY.heirShare, weights, goals })
     return { goals, weights, ...result }
-  }, [plan.travelPerYear, plan.stockShare, plan.extraGoal])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.travelPerYear, allocKey, plan.extraGoal])
 }
+
+const ease = (t) => 1 - Math.pow(1 - t, 3)
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 export function GoalCards({ goals, probabilities }) {
   return (
@@ -31,10 +39,6 @@ export function GoalCards({ goals, probabilities }) {
     </div>
   )
 }
-
-const mixLabel = (s) => (s <= 0.3 ? 'Steady' : s >= 0.7 ? 'Growth' : 'Balanced')
-
-// ---- Scenario presets for comparison mode -----------------------------------
 
 // ---- Contextual explainer entries ------------------------------------------
 const EXPLAINER_TOPICS = {
@@ -66,20 +70,64 @@ export default function Planner() {
   const [why, setWhy] = useState('')
   const [explainerTopic, setExplainerTopic] = useState(null)
   const [lastChangedMsg, setLastChangedMsg] = useState(null)
+  const [showPrefs, setShowPrefs] = useState(!plan.prefsChosen)
+  const [busy, setBusy] = useState(false)
+  const [anim, setAnim] = useState(null) // slider values while animating to a suggested mix
+  const [suggested, setSuggested] = useState(null)
+  const frame = useRef(0)
+
+  // Move the sliders to a new mix, animated, then save it.
+  const animateTo = (target, picks) => {
+    const from = plan.alloc
+    const save = () => {
+      dispatch({ type: 'plan', plan: { alloc: target, picks, prefsChosen: true } })
+      setAnim(null)
+    }
+    if (reducedMotion()) return save()
+    cancelAnimationFrame(frame.current)
+    const t0 = performance.now()
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / 800)
+      const k = ease(t)
+      setAnim(Object.fromEntries(Object.keys(target).map((key) => [key, Math.round((from[key] || 0) + ((target[key] - (from[key] || 0)) * k))])))
+      if (t < 1) frame.current = requestAnimationFrame(step)
+      else save()
+    }
+    frame.current = requestAnimationFrame(step)
+  }
+
+  // The formula: search for the mix of Maya's picks with the best goal odds
+  const buildPlan = (picks) => {
+    setBusy(true)
+    setTimeout(() => {
+      const goals = planGoals(plan.travelPerYear, plan.extraGoal)
+      const target = suggestAllocation({ picks, goals, startWealth: FAMILY.heirShare })
+      setBusy(false)
+      setShowPrefs(false)
+      setSuggested(describeMix(target))
+      setLastChangedMsg(null)
+      animateTo(target, picks)
+    }, 30)
+  }
+
+  const changeMix = (next, movedKey) => {
+    const o = OPTION_BY_ID[movedKey]
+    const up = next[movedKey] > plan.alloc[movedKey]
+    const risky = ['stocks', 'privateEquity', 'art', 'cars', 'crypto'].includes(movedKey)
+    setSuggested(null)
+    setLastChangedMsg(
+      `${o.label} is now ${next[movedKey]}%. The other investments shifted to keep the total at 100%. ` +
+      (up === risky
+        ? 'This leans toward growth: higher potential, but bigger swings. Watch the family wealth goal.'
+        : 'This leans toward steadiness: smaller swings, but slower growth. Watch your studio goal.')
+    )
+    dispatch({ type: 'plan', plan: { alloc: next } })
+  }
 
   const locked = proposal && ['submitted', 'reviewed'].includes(proposal.status)
   const set = (patch) => {
     dispatch({ type: 'plan', plan: patch })
     // Contextual feedback when slider changes
-    if (patch.stockShare != null) {
-      const old = plan.stockShare
-      const newer = patch.stockShare
-      if (newer > old) {
-        setLastChangedMsg('Increasing the stock allocation may improve long-term growth potential, but it can also increase the size of potential losses. Consider whether the plan still supports your need for accessible funds.')
-      } else if (newer < old) {
-        setLastChangedMsg('Lowering the stock allocation reduces short-term swings, but may slow long-term growth. Make sure this still gives you a reasonable chance of reaching your larger goals.')
-      }
-    }
     if (patch.travelPerYear != null) {
       const old = plan.travelPerYear
       const newer = patch.travelPerYear
@@ -105,7 +153,7 @@ export default function Planner() {
     <div className="planner">
       <h1>My plan</h1>
       <p className="lede">
-        {money(FAMILY.heirShare, { compact: false })} is set aside for you. Move the sliders to see how your priorities and the family's long-term wealth affect each other.
+        {money(FAMILY.heirShare, { compact: false })} is set aside for you. Choose what to invest in and how much travel you want, and see how your priorities and the family's long-term wealth affect each other.
       </p>
 
       {proposal?.status === 'question' && (
@@ -126,20 +174,27 @@ export default function Planner() {
             <span className="slider-scale"><span>$5,000</span><span>$50,000</span></span>
           </label>
 
-          <label className="slider">
-            <span className="slider-head">
-              <span>How much goes into stocks</span>
-              <strong>{Math.round(plan.stockShare * 100)}% <span className="muted">{mixLabel(plan.stockShare)}</span></strong>
-            </span>
-            <input type="range" min={0.2} max={0.9} step={0.1} value={plan.stockShare}
-              onChange={(e) => set({ stockShare: Number(Number(e.target.value).toFixed(1)) })} />
-            <span className="slider-scale"><span>Steadier</span><span>More growth, bigger swings</span></span>
-          </label>
-
-          <p className="mix-note">
-            Your mix: {Math.round(r.weights.stocks * 100)}% stocks, {Math.round(r.weights.bonds * 100)}% bonds, 10% real estate. It grows about {(expectedReturn(r.weights) * 100).toFixed(1)}% in a typical year.{' '}
-            <span className="muted">This is called asset allocation.</span>
-          </p>
+          <div className="mix-section">
+            <div className="mix-section-head">
+              <h2>Your investment mix</h2>
+              <button type="button" className="text-btn" onClick={() => setShowPrefs(true)}>Change investments</button>
+            </div>
+            {suggested && (
+              <p className="mix-suggested">
+                Suggested for your goals: {suggested}. This mix gave your goals the best odds within the family’s guardrails. Adjust any slider to explore.
+              </p>
+            )}
+            <MixEditor alloc={anim || plan.alloc} total={FAMILY.heirShare} disabled={!!anim} onChange={changeMix} />
+            <div className="mix-actions">
+              <button type="button" className="btn" disabled={busy || !!anim} onClick={() => buildPlan(plan.picks || Object.keys(plan.alloc))}>
+                {busy ? 'Finding the best mix…' : 'Suggest a mix for my goals'}
+              </button>
+            </div>
+            <p className="mix-note">
+              It grows about {(expectedReturn(r.weights) * 100).toFixed(1)}% in a typical year.{' '}
+              <span className="muted">How you split money across investments is called asset allocation.</span>
+            </p>
+          </div>
 
           {lastChangedMsg && (
             <div className="slider-feedback">
@@ -156,8 +211,23 @@ export default function Planner() {
           </div>
         </div>
 
-        <GoalCards goals={r.goals} probabilities={r.probabilities} />
+        <div className="goals-col">
+          <GoalCards goals={r.goals} probabilities={r.probabilities} />
+        </div>
       </div>
+
+      {showPrefs && (
+        <InvestmentPrefs
+          initialPicks={plan.picks || Object.keys(plan.alloc)}
+          busy={busy}
+          onConfirm={buildPlan}
+          closeLabel={plan.prefsChosen ? 'Cancel' : 'Skip for now'}
+          onClose={() => {
+            if (!plan.prefsChosen) dispatch({ type: 'plan', plan: { prefsChosen: true } })
+            setShowPrefs(false)
+          }}
+        />
+      )}
 
       {explainerTopic && (
         <Explainer
@@ -193,7 +263,7 @@ export default function Planner() {
         ) : (
           <form className="propose-form" onSubmit={submit}>
             <h2>Propose this plan</h2>
-            <p className="muted">Your proposal includes: {Math.round(plan.stockShare * 100)}% stocks · Travel {money(plan.travelPerYear, { compact: false })} / year</p>
+            <p className="muted">Your proposal includes: {describeMix(plan.alloc)} · Travel {money(plan.travelPerYear, { compact: false })} / year</p>
             <label className="field">
               <span>How much of the fund?</span>
               <input type="number" min={1000} max={FAMILY.smallFund} step={1000} value={amount} onChange={(e) => setAmount(e.target.value)} required />

@@ -12,6 +12,7 @@
 
 import { FAMILY, LADDER, SCENARIOS, planGoals, planWeights, PLAN_DEFAULTS } from '../data/demo.js'
 import { simulatePlan, expectedReturn } from './engine.js'
+import { describeMix } from './allocate.js'
 
 export const money = (v) => {
   if (Math.abs(v) >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2).replace(/\.?0+$/, '') + 'M'
@@ -25,7 +26,7 @@ const outOf10 = (p) => Math.round(p * 10)
 export function computeFamilyFacts(state = {}) {
   const plan = { ...PLAN_DEFAULTS, ...(state.proposal?.plan || state.plan || {}) }
   const goals = planGoals(plan.travelPerYear, plan.extraGoal)
-  const weights = planWeights(plan.stockShare)
+  const weights = planWeights(plan)
   const sim = simulatePlan({ startWealth: FAMILY.heirShare, weights, goals })
 
   const sims = Object.entries(state.simulations || {})
@@ -52,9 +53,7 @@ export function computeFamilyFacts(state = {}) {
     levelName: ladder?.name || '',
     totalLevels: LADDER.length,
     plan,
-    stockPct: Math.round(weights.stocks * 100),
-    bondPct: Math.round(weights.bonds * 100),
-    realEstatePct: Math.round(weights.realEstate * 100),
+    mixText: describeMix(plan.alloc),
     typicalReturnPct: +(expectedReturn(weights) * 100).toFixed(1),
     goals: goals.map((g) => ({ ...g, probability: sim.probabilities[g.id] })),
     studio: studio && { ...studio, probability: sim.probabilities[studio.id] },
@@ -78,7 +77,7 @@ export function factsToText(f) {
       (f.avgScore != null ? ` Average decision score: ${f.avgScore} out of 100.` : ' No decision score yet.'),
     ...f.scenarios.map((s) => `- Scenario "${s.title}": decision score ${s.score}.`),
     `Money set aside for ${f.heirName}'s plan: ${money(f.heirShare)}. Practice fund: ${money(f.practiceFund)}.`,
-    `Current plan mix: ${f.stockPct}% stocks, ${f.bondPct}% bonds, ${f.realEstatePct}% real estate; typical yearly growth about ${f.typicalReturnPct}%.`,
+    `Current plan mix: ${f.mixText}; typical yearly growth about ${f.typicalReturnPct}%.`,
     `Travel spending in the plan: ${money(f.plan.travelPerYear)} a year.`,
     `Goal odds from ${f.paths} simulated futures:`,
     ...f.goals.map((g) => `- ${g.name} (${money(g.amount)} ${g.detail}): ${outOf10(g.probability)} in 10 futures (${pct(g.probability)}).`),
@@ -163,7 +162,7 @@ export function buildBriefing(f) {
   const proposalLine = f.proposal
     ? `${f.heirName} has proposed putting ${money(f.proposal.amount)} into ${f.proposal.use}.`
     : `${f.heirName} hasn't proposed a plan for the ${money(f.practiceFund)} practice fund yet.`
-  const mix = `${f.stockPct}% stocks, ${f.bondPct}% bonds and ${f.realEstatePct}% real estate`
+  const mix = f.mixText
 
   return {
     heirBriefing: {

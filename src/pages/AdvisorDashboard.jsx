@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { describeMix } from '../engine/allocate.js'
 import { useDemo } from '../state.jsx'
 import { FAMILY, SCENARIOS, LADDER } from '../data/demo.js'
 import { useBenefitsMilestones } from './Benefits.jsx'
@@ -186,7 +187,7 @@ export default function AdvisorDashboard() {
                   <h3>Plan details</h3>
                   <p className="muted">
                     Travel ${proposal.plan?.travelPerYear?.toLocaleString()} / year ·{' '}
-                    {Math.round((proposal.plan?.stockShare || 0) * 100)}% stocks ·
+                    {describeMix(proposal.plan?.alloc || {})} ·
                     tested across 1,000 simulated futures
                   </p>
                 </div>

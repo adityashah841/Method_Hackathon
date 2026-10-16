@@ -66,10 +66,12 @@ export const LADDER = [
   },
 ]
 
-// Planner: growth slider sets the stock share; 10% stays in real estate.
-export function planWeights(stockShare) {
-  const realEstate = 0.1
-  return { stocks: stockShare, bonds: Math.max(0, 1 - realEstate - stockShare), realEstate }
+// Planner: the plan holds a full mix in percent, e.g. { stocks: 50, bonds: 40, realEstate: 10 },
+// plus the investments Maya picked. planWeights turns it into fractions for the engine.
+export function planWeights(plan) {
+  const alloc = plan?.alloc || PLAN_DEFAULTS.alloc
+  const total = Object.values(alloc).reduce((a, b) => a + b, 0) || 1
+  return Object.fromEntries(Object.entries(alloc).map(([k, v]) => [k, v / total]))
 }
 
 export function planGoals(travelPerYear, extraGoal) {
@@ -87,7 +89,13 @@ export function planGoals(travelPerYear, extraGoal) {
   return base
 }
 
-export const PLAN_DEFAULTS = { travelPerYear: 20_000, stockShare: 0.5, extraGoal: null }
+export const PLAN_DEFAULTS = {
+  travelPerYear: 20_000,
+  alloc: { stocks: 50, bonds: 40, realEstate: 10 },
+  picks: ['stocks', 'bonds', 'realEstate'],
+  prefsChosen: false, // has Maya answered the investment-preferences popup?
+  extraGoal: null,
+}
 
 // ---- Benefits (incentive) config -------------------------------------------
 export const BENEFITS = {

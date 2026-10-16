@@ -5,7 +5,7 @@ import { buildBriefing, computeFamilyFacts } from './engine/facts.js'
 // One shared demo state for all three roles, so switching roles live
 // shows the same proposal moving through the trust triangle.
 
-const STORAGE_KEY = 'heirloom-demo-v4' // v4: trimmed to the core demo story
+const STORAGE_KEY = 'heirloom-demo-v5' // v5: multi-asset plans
 
 // The first advisor report is written by the engine from the starting
 // state, so every figure in it matches the Planner (no hardcoded numbers).
@@ -67,6 +67,8 @@ function reducer(state, action) {
       }
     case 'plan':
       return { ...state, plan: { ...state.plan, ...action.plan } }
+    case 'resetPrefs':
+      return { ...state, plan: { ...state.plan, prefsChosen: false } }
     case 'submit':
       return {
         ...state,

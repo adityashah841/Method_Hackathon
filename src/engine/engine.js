@@ -8,23 +8,38 @@
 // always give the same numbers (no AI, no randomness between renders).
 
 // ---- Asset assumptions (illustrative long-run figures, NOT forecasts) ----
+// The first five are the original assets. The rest were added for the
+// heir's own interests; they are listed AFTER the originals and drawn from a
+// separate random stream, so adding them never changes the original futures.
 export const ASSETS = {
   stocks:     { label: 'Stocks',            mu: 0.08, sigma: 0.16 },
   bonds:      { label: 'Bonds',             mu: 0.04, sigma: 0.06 },
   realEstate: { label: 'Real estate',       mu: 0.06, sigma: 0.12 },
   cash:       { label: 'Cash',              mu: 0.03, sigma: 0.01 },
   familyCo:   { label: 'Family company stock', mu: 0.09, sigma: 0.35 },
+  privateEquity: { label: 'Private equity', mu: 0.10, sigma: 0.22 },
+  art:        { label: 'Fine art',          mu: 0.06, sigma: 0.18 },
+  cars:       { label: 'Vintage cars',      mu: 0.07, sigma: 0.20 },
+  gold:       { label: 'Gold',              mu: 0.04, sigma: 0.15 },
+  crypto:     { label: 'Crypto',            mu: 0.12, sigma: 0.70 },
 }
 export const ASSET_KEYS = Object.keys(ASSETS)
+const BASE_ASSETS = 5 // stocks..familyCo: drawn from the original stream
 
 // How much assets move together (illustrative). Order = ASSET_KEYS.
+// The top-left 5x5 block is the original matrix, unchanged.
 const CORR = [
-  // stocks bonds  RE   cash  famCo
-  [1.0,   0.1,  0.6,  0.0,  0.6], // stocks
-  [0.1,   1.0,  0.2,  0.1,  0.05], // bonds
-  [0.6,   0.2,  1.0,  0.0,  0.4], // real estate
-  [0.0,   0.1,  0.0,  1.0,  0.0], // cash
-  [0.6,   0.05, 0.4,  0.0,  1.0], // family company
+  // stocks bonds  RE   cash  famCo  PE    art   cars  gold  crypto
+  [1.0,   0.1,  0.6,  0.0,  0.6,   0.7,  0.25, 0.2,  0.0,  0.35], // stocks
+  [0.1,   1.0,  0.2,  0.1,  0.05,  0.1,  0.0,  0.0,  0.2,  0.0 ], // bonds
+  [0.6,   0.2,  1.0,  0.0,  0.4,   0.5,  0.2,  0.15, 0.1,  0.1 ], // real estate
+  [0.0,   0.1,  0.0,  1.0,  0.0,   0.0,  0.0,  0.0,  0.1,  0.0 ], // cash
+  [0.6,   0.05, 0.4,  0.0,  1.0,   0.5,  0.15, 0.1,  0.0,  0.2 ], // family company
+  [0.7,   0.1,  0.5,  0.0,  0.5,   1.0,  0.2,  0.15, 0.0,  0.25], // private equity
+  [0.25,  0.0,  0.2,  0.0,  0.15,  0.2,  1.0,  0.4,  0.1,  0.1 ], // fine art
+  [0.2,   0.0,  0.15, 0.0,  0.1,   0.15, 0.4,  1.0,  0.05, 0.05], // vintage cars
+  [0.0,   0.2,  0.1,  0.1,  0.0,   0.0,  0.1,  0.05, 1.0,  0.1 ], // gold
+  [0.35,  0.0,  0.1,  0.0,  0.2,   0.25, 0.1,  0.05, 0.1,  1.0 ], // crypto
 ]
 
 export const DEFAULT_PATHS = 1000
@@ -76,13 +91,14 @@ export function generateReturns(nPaths = DEFAULT_PATHS, years = 30, seed = DEFAU
   const key = `${nPaths}|${years}|${seed}`
   if (cache.has(key)) return cache.get(key)
   const rng = makeRng(seed)
+  const rngExtra = makeRng(seed ^ 0x5bd1e995) // separate stream for the added assets
   const n = ASSET_KEYS.length
   const out = new Array(nPaths)
   for (let p = 0; p < nPaths; p++) {
     const path = new Array(years)
     for (let y = 0; y < years; y++) {
       const z = new Array(n)
-      for (let i = 0; i < n; i++) z[i] = normal(rng)
+      for (let i = 0; i < n; i++) z[i] = normal(i < BASE_ASSETS ? rng : rngExtra)
       const r = new Array(n)
       for (let i = 0; i < n; i++) {
         let c = 0
